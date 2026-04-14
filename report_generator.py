@@ -295,18 +295,6 @@ HTML_TEMPLATE = """<!DOCTYPE html>
 <!-- ④ 主內容 -->
 <div class="container">
 
-  <!-- 市場新聞 -->
-  <div class="news-section">
-    <h3>📰 本週市場焦點新聞</h3>
-    {% for n in market_news %}
-    <div class="news-item">
-      <a href="{{ n.link }}" target="_blank">{{ n.title }}</a>
-      <div class="news-source">{{ n.source }} ｜ {{ n.published[:16] if n.published else '' }}</div>
-    </div>
-    {% endfor %}
-    {% if not market_news %}<p style="color:#999;font-size:.85rem;">暫無新聞資料</p>{% endif %}
-  </div>
-
   <!-- 各分類股票 -->
   {% for cat in ['必買','買入','等待','賣出','必賣'] %}
   {% set cat_stocks = results | selectattr('category','equalto',cat) | list %}
@@ -383,6 +371,18 @@ HTML_TEMPLATE = """<!DOCTYPE html>
   </div>
   {% endif %}
   {% endfor %}
+
+  <!-- 市場新聞（最下方） -->
+  <div class="news-section">
+    <h3>📰 本週市場焦點新聞</h3>
+    {% for n in market_news %}
+    <div class="news-item">
+      <a href="{{ n.link }}" target="_blank">{{ n.title }}</a>
+      <div class="news-source">{{ n.source }} ｜ {{ n.published[:16] if n.published else '' }}</div>
+    </div>
+    {% endfor %}
+    {% if not market_news %}<p style="color:#999;font-size:.85rem;">暫無新聞資料</p>{% endif %}
+  </div>
 
 </div>
 
