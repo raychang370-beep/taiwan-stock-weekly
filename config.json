@@ -16,7 +16,7 @@
     {"name": "MoneyDJ", "url": "https://www.moneydj.com/rss/news.aspx"},
     {"name": "Yahoo股市", "url": "https://tw.stock.yahoo.com/rss"}
   ],
-  "output_dir": "output",
+  "output_dir": "docs",
   "report_title": "台股技術分析週報",
   "password": "stock2026",
   "github_repo": "raychang370-beep/taiwan-stock-weekly"

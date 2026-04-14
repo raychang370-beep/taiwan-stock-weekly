@@ -31,10 +31,10 @@ jobs:
       - name: Setup Pages
         uses: actions/configure-pages@v5
 
-      - name: Upload output folder as Pages artifact
+      - name: Upload docs folder as Pages artifact
         uses: actions/upload-pages-artifact@v3
         with:
-          path: output/          # 只上傳 output 資料夾
+          path: docs/          # 只上傳 docs 資料夾
 
       - name: Deploy to GitHub Pages
         id: deployment
