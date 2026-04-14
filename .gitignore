@@ -1,0 +1,17 @@
+# Python-generated files
+__pycache__/
+*.py[oc]
+build/
+dist/
+wheels/
+*.egg-info
+
+# Virtual environments
+.venv
+
+# 不上傳 uv lock（可選）
+# uv.lock
+
+# Windows
+Thumbs.db
+Desktop.ini

@@ -1,0 +1,942 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>台股技術分析週報 — 2026 年第 16 週（04/14）</title>
+<!-- 密碼保護：在 Chart.js 之前執行，防止頁面內容被看到 -->
+<script>
+(function(){
+  const HASH = "1aeaf73d994452190c20e0e76fd0648137a402055f18326eef825b5e034fa362"; // SHA-256 of password
+  const KEY  = "tw_stock_auth";
+  async function sha256(msg){
+    const buf = await crypto.subtle.digest("SHA-256", new TextEncoder().encode(msg));
+    return Array.from(new Uint8Array(buf)).map(b=>b.toString(16).padStart(2,'0')).join('');
+  }
+  async function check(){
+    const saved = sessionStorage.getItem(KEY);
+    if(saved === HASH){ document.getElementById('lock').style.display='none'; return; }
+    document.getElementById('lock').style.display='flex';
+    document.getElementById('main-body').style.display='none';
+    document.getElementById('pw-input').focus();
+    document.getElementById('pw-form').onsubmit = async function(e){
+      e.preventDefault();
+      const pw = document.getElementById('pw-input').value;
+      const h  = await sha256(pw);
+      if(h === HASH){
+        sessionStorage.setItem(KEY, h);
+        document.getElementById('lock').style.display='none';
+        document.getElementById('main-body').style.display='block';
+      } else {
+        document.getElementById('pw-err').textContent='密碼錯誤，請再試一次';
+        document.getElementById('pw-input').value='';
+        document.getElementById('pw-input').focus();
+      }
+    };
+  }
+  window.addEventListener('DOMContentLoaded', check);
+})();
+</script>
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+<style>
+  :root {
+    --buy-strong:#00b300; --buy:#33cc33; --wait:#e6a800;
+    --sell:#ff3333; --sell-strong:#cc0000;
+    --bg:#f5f7fa; --card:#fff; --text:#1a1a2e; --sub:#666;
+    --radius:12px;
+  }
+  *{box-sizing:border-box;margin:0;padding:0;}
+  body{font-family:'Noto Sans TC','Microsoft JhengHei',sans-serif;background:var(--bg);color:var(--text);}
+
+  /* ── Header ── */
+  header{background:linear-gradient(135deg,#1a1a2e,#16213e);color:#fff;padding:1.6rem 2rem;text-align:center;}
+  header h1{font-size:1.9rem;margin-bottom:.3rem;}
+  .subtitle{color:#aaa;font-size:.85rem;}
+  .cat-summary{display:flex;gap:.6rem;justify-content:center;flex-wrap:wrap;margin-top:1rem;}
+  .cat-pill{padding:.35rem .9rem;border-radius:20px;font-weight:700;font-size:.82rem;display:flex;align-items:center;gap:.3rem;}
+
+  /* ── 自選股管理面板 ── */
+  .stock-manager{background:#fff;border-bottom:3px solid #e0e0e0;padding:1.2rem 2rem;}
+  .stock-manager h2{font-size:1rem;font-weight:700;margin-bottom:.8rem;color:#1a1a2e;display:flex;align-items:center;gap:.4rem;}
+  .manager-row{display:flex;gap:.8rem;flex-wrap:wrap;align-items:flex-end;}
+  .manager-row input,
+  .manager-row select{padding:.45rem .75rem;border:1.5px solid #ccc;border-radius:8px;font-size:.88rem;outline:none;font-family:inherit;}
+  .manager-row input:focus,
+  .manager-row select:focus{border-color:#1a73e8;}
+  .btn{padding:.45rem 1.1rem;border:none;border-radius:8px;font-size:.88rem;font-weight:600;cursor:pointer;font-family:inherit;transition:opacity .2s;}
+  .btn-add{background:#1a73e8;color:#fff;}
+  .btn-run{background:#00b300;color:#fff;}
+  .btn-run:disabled{background:#999;cursor:not-allowed;}
+  .btn:hover:not(:disabled){opacity:.85;}
+  .stocks-list{display:flex;gap:.5rem;flex-wrap:wrap;margin-top:.8rem;}
+  .stock-tag{display:flex;align-items:center;gap:.3rem;background:#f0f4ff;border:1.5px solid #c5d5ff;border-radius:20px;padding:.25rem .7rem;font-size:.82rem;}
+  .stock-tag .remove{cursor:pointer;color:#cc0000;font-weight:700;margin-left:.2rem;font-size:.9rem;}
+  .stock-tag.new-tag{background:#e6ffe6;border-color:#00b300;color:#006600;}
+  #manager-msg{font-size:.82rem;margin-top:.5rem;padding:.35rem .8rem;border-radius:6px;display:none;}
+  #manager-msg.ok{background:#e6ffe6;color:#006600;display:block;}
+  #manager-msg.err{background:#ffe6e6;color:#cc0000;display:block;}
+  #manager-msg.info{background:#e6f0ff;color:#1a73e8;display:block;}
+
+  /* ── 型態分類依據 ── */
+  .pattern-guide{background:#fff;padding:1.2rem 2rem;border-bottom:3px solid #e0e0e0;}
+  .pattern-guide h2{font-size:1rem;font-weight:700;margin-bottom:.9rem;color:#1a1a2e;}
+  .guide-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(200px,1fr));gap:.7rem;}
+  .guide-card{border-radius:10px;padding:.75rem 1rem;border:1.5px solid;}
+  .guide-card h4{font-size:.82rem;font-weight:700;margin-bottom:.45rem;display:flex;align-items:center;gap:.3rem;}
+  .guide-card ul{list-style:none;font-size:.78rem;line-height:1.8;}
+  .guide-card ul li::before{content:"▸ ";}
+  .guide-kd{display:flex;gap:.6rem;flex-wrap:wrap;margin-top:.9rem;}
+  .kd-tag{padding:.3rem .75rem;border-radius:8px;font-size:.78rem;font-weight:600;}
+
+  /* ── 容器 ── */
+  .container{max-width:1400px;margin:0 auto;padding:1.5rem;}
+  .section-title{font-size:1.15rem;font-weight:700;margin:1.5rem 0 .7rem;
+                 padding:.4rem .9rem;border-left:4px solid;border-radius:5px;}
+  .cards{display:grid;grid-template-columns:repeat(auto-fill,minmax(340px,1fr));gap:1.2rem;margin-bottom:1.5rem;}
+  .card{background:var(--card);border-radius:var(--radius);padding:1.2rem;
+        box-shadow:0 2px 10px rgba(0,0,0,.08);border-top:4px solid;transition:transform .2s;}
+  .card:hover{transform:translateY(-3px);}
+  .card-header{display:flex;justify-content:space-between;align-items:flex-start;}
+  .stock-name{font-size:1.05rem;font-weight:700;}
+  .stock-symbol{color:var(--sub);font-size:.78rem;}
+  .price{font-size:1.35rem;font-weight:700;}
+  .change{font-size:.83rem;}
+  .change.up{color:var(--buy);}
+  .change.down{color:var(--sell);}
+  .pattern-badge{display:inline-block;margin:.55rem 0;padding:.2rem .7rem;border-radius:20px;font-size:.78rem;font-weight:600;}
+  .kd-row{display:flex;gap:.8rem;margin:.35rem 0;font-size:.82rem;}
+  .kd-item{background:#f4f4f4;padding:.2rem .6rem;border-radius:6px;}
+  .kd-item span{font-weight:700;}
+  .cross-tag{font-size:.73rem;padding:.12rem .5rem;border-radius:10px;background:#fff3cd;color:#856404;font-weight:600;margin-left:.3rem;}
+  .chart-wrap{margin-top:.75rem;height:130px;position:relative;}
+  .chart-wrap canvas{max-height:130px;}
+  .ma-row{display:flex;gap:.7rem;margin:.3rem 0;font-size:.76rem;color:var(--sub);}
+  .confidence-bar{background:#e0e0e0;border-radius:4px;height:5px;margin:.35rem 0;overflow:hidden;}
+  .confidence-fill{height:100%;border-radius:4px;}
+
+  /* ── 新聞 ── */
+  .news-section{background:var(--card);border-radius:var(--radius);padding:1.2rem;
+                margin-bottom:1.5rem;box-shadow:0 2px 8px rgba(0,0,0,.07);}
+  .news-section h3{margin-bottom:.7rem;font-size:.95rem;}
+  .news-item{padding:.45rem 0;border-bottom:1px solid #eee;font-size:.83rem;}
+  .news-item:last-child{border-bottom:none;}
+  .news-item a{color:#1a73e8;text-decoration:none;}
+  .news-item a:hover{text-decoration:underline;}
+  .news-source{color:var(--sub);font-size:.74rem;margin-top:.15rem;}
+
+  footer{text-align:center;padding:2rem;color:var(--sub);font-size:.78rem;}
+</style>
+</head>
+<body>
+
+<!-- 密碼鎖定畫面 -->
+<div id="lock" style="display:none;position:fixed;inset:0;background:linear-gradient(135deg,#1a1a2e,#16213e);
+     z-index:9999;align-items:center;justify-content:center;flex-direction:column;">
+  <div style="background:#fff;border-radius:16px;padding:2.5rem 3rem;text-align:center;max-width:360px;width:90%;box-shadow:0 8px 32px rgba(0,0,0,.4);">
+    <div style="font-size:3rem;margin-bottom:.5rem;">🔐</div>
+    <h2 style="font-size:1.2rem;margin-bottom:.3rem;color:#1a1a2e;">台股週報</h2>
+    <p style="color:#666;font-size:.85rem;margin-bottom:1.2rem;">請輸入密碼以查看報告</p>
+    <form id="pw-form">
+      <input id="pw-input" type="password" placeholder="輸入密碼"
+        style="width:100%;padding:.6rem .9rem;border:2px solid #ddd;border-radius:8px;
+               font-size:1rem;outline:none;margin-bottom:.5rem;font-family:inherit;" />
+      <div id="pw-err" style="color:#cc0000;font-size:.82rem;min-height:1.2rem;margin-bottom:.5rem;"></div>
+      <button type="submit"
+        style="width:100%;padding:.65rem;background:#1a1a2e;color:#fff;border:none;
+               border-radius:8px;font-size:.95rem;cursor:pointer;font-weight:600;">
+        進入報告 →
+      </button>
+    </form>
+  </div>
+</div>
+
+<!-- 主要內容（密碼正確後顯示） -->
+<div id="main-body">
+
+<!-- ① Header -->
+<header>
+  <h1>📊 台股技術分析週報</h1>
+  <div class="subtitle">2026 年第 16 週（04/14） ｜ 產生時間：2026-04-14 22:03</div>
+  <div class="cat-summary">
+    
+    <span class="cat-pill" style="background:#e6ffe6;color:#00b300;border:1px solid #00b300">
+      🚀 必買 (0)
+    </span>
+    
+    <span class="cat-pill" style="background:#f0fff0;color:#33cc33;border:1px solid #33cc33">
+      📈 買入 (2)
+    </span>
+    
+    <span class="cat-pill" style="background:#fff8e6;color:#ff9900;border:1px solid #ff9900">
+      ⏳ 等待 (4)
+    </span>
+    
+    <span class="cat-pill" style="background:#fff0f0;color:#ff3333;border:1px solid #ff3333">
+      📉 賣出 (0)
+    </span>
+    
+    <span class="cat-pill" style="background:#ffe6e6;color:#cc0000;border:1px solid #cc0000">
+      💣 必賣 (0)
+    </span>
+    
+  </div>
+</header>
+
+<!-- ② 自選股管理面板 -->
+<div class="stock-manager">
+  <h2>⭐ 自選股管理</h2>
+  <div class="manager-row">
+    <div>
+      <div style="font-size:.75rem;color:#888;margin-bottom:.3rem;">股票代號（如 2330）</div>
+      <input id="inp-symbol" type="text" placeholder="2330" maxlength="10" style="width:110px">
+    </div>
+    <div>
+      <div style="font-size:.75rem;color:#888;margin-bottom:.3rem;">公司名稱</div>
+      <input id="inp-name" type="text" placeholder="台積電" maxlength="20" style="width:120px">
+    </div>
+    <div>
+      <div style="font-size:.75rem;color:#888;margin-bottom:.3rem;">產業</div>
+      <select id="inp-industry">
+        <option>半導體</option>
+        <option>記憶體</option>
+        <option>電子零組件</option>
+        <option>金融</option>
+        <option>傳產</option>
+        <option>生技</option>
+        <option>其他</option>
+      </select>
+    </div>
+    <button class="btn btn-add" onclick="addStock()">＋ 加入</button>
+    <button class="btn btn-run" id="btn-run" onclick="runAnalysis()">🔄 重新分析</button>
+  </div>
+  <div class="stocks-list" id="stocks-list"></div>
+  <div id="manager-msg"></div>
+</div>
+
+<!-- ③ 型態分類依據 -->
+<div class="pattern-guide">
+  <h2>📐 型態分類依據（依圖表技術分析）</h2>
+  <div class="guide-grid">
+    <div class="guide-card" style="background:#e6ffe6;border-color:#00b300;">
+      <h4 style="color:#006600;">🚀 必買（80–100% 信心）</h4>
+      <ul style="color:#006600;">
+        <li>KD 黃金交叉 ＋ K&lt;20 超賣</li>
+        <li>W底（雙底）突破頸線</li>
+        <li>頭肩底完成</li>
+        <li>三重底確認</li>
+      </ul>
+    </div>
+    <div class="guide-card" style="background:#f0fff0;border-color:#33cc33;">
+      <h4 style="color:#33cc33;">📈 買入（65–79% 信心）</h4>
+      <ul style="color:#2a7a2a;">
+        <li>上升旗形突破</li>
+        <li>倒頭肩型完成</li>
+        <li>上升三角形突破</li>
+        <li>下降楔形向上突破</li>
+        <li>均線多頭排列</li>
+      </ul>
+    </div>
+    <div class="guide-card" style="background:#fff8e6;border-color:#e6a800;">
+      <h4 style="color:#a07000;">⏳ 等待（50% 信心）</h4>
+      <ul style="color:#a07000;">
+        <li>三角收斂（方向未定）</li>
+        <li>箱型盤整中</li>
+        <li>擴散三角形</li>
+        <li>上升通道中段</li>
+        <li>KD 糾纏無方向</li>
+      </ul>
+    </div>
+    <div class="guide-card" style="background:#fff0f0;border-color:#ff3333;">
+      <h4 style="color:#cc0000;">📉 賣出（65–79% 信心）</h4>
+      <ul style="color:#cc0000;">
+        <li>下跌旗形確認</li>
+        <li>上升楔形向下跌破</li>
+        <li>均線空頭排列</li>
+        <li>M頭頸線跌破</li>
+        <li>三重頂確認</li>
+      </ul>
+    </div>
+    <div class="guide-card" style="background:#ffe6e6;border-color:#cc0000;">
+      <h4 style="color:#cc0000;">💣 必賣（80–100% 信心）</h4>
+      <ul style="color:#cc0000;">
+        <li>KD 死亡交叉 ＋ K&gt;80 超買</li>
+        <li>M頭（雙頂）完成</li>
+        <li>菱形頂突破</li>
+        <li>倒V型反轉</li>
+        <li>三重頂確認</li>
+      </ul>
+    </div>
+    <div class="guide-card" style="background:#f5f0ff;border-color:#8844cc;">
+      <h4 style="color:#6622aa;">📊 KD 線判讀</h4>
+      <ul style="color:#6622aa;">
+        <li>K&lt;20 超賣區（低點）</li>
+        <li>K&gt;80 超買區（高點）</li>
+        <li>K線上穿D線 = 黃金交叉↑</li>
+        <li>K線下穿D線 = 死亡交叉↓</li>
+        <li>MA5&gt;MA10&gt;MA20 多頭</li>
+      </ul>
+    </div>
+  </div>
+  <div class="guide-kd">
+    <span class="kd-tag" style="background:#e6ffe6;color:#006600;">✅ 賣出警告 100% → M頭防範暴跌</span>
+    <span class="kd-tag" style="background:#f0fff0;color:#228822;">📉 80% → 下跌旗形趕快賣出</span>
+    <span class="kd-tag" style="background:#fff8e6;color:#a07000;">⚠️ 65% → 菱形頂緩慢下跌</span>
+    <span class="kd-tag" style="background:#e6f0ff;color:#1a73e8;">🔄 50% → 箱型盤整危險別碰</span>
+    <span class="kd-tag" style="background:#f0fff0;color:#228822;">📈 65% → W底趕緊買入</span>
+    <span class="kd-tag" style="background:#e6ffe6;color:#006600;">🚀 80–100% → 上升旗形/頭肩底迎接暴漲</span>
+  </div>
+</div>
+
+<!-- ④ 主內容 -->
+<div class="container">
+
+  <!-- 市場新聞 -->
+  <div class="news-section">
+    <h3>📰 本週市場焦點新聞</h3>
+    
+    <div class="news-item">
+      <a href="https://news.google.com/rss/articles/CBMi3ANBVV95cUxPQklIcklhMkstaUdBQzBNRWUzZnlWTzhmZWVKY2NucktIaFVTOTNaQk9wbkhFWlJKUGYxd3dhS2ZvS01LQjZlQTU4NTVZNWJQY0dXaWhCRTI4NEdpS25USjdQdURvYUJrU09Ldk9tZDkzNW5wNzhMa0ctS1lMYUpzenBIcEVSMDgxUnVsaFNjbW1iYzFXZjRPY2VEb1Q5dWtheTRvRl9Na3Y5NkVTUUsyZlNqVVZuNzlSaTlCalRBbk9oSU13VE8yOGx4eUJ0UUVUUkFGN3hCTG85Y090TS1qZjJQR1BVQ05tZTQ5bDFGUVFpWTNuMk00WTB4dW5vUDItWjhWXzVLN2ExRW53bnFScVdlRk92el9EVDJtTnNyc01YRml1STItNFp5czM5bU5YdUU5WWtMeWdLMVpMYTVBbTdSLU5uTW5mRW1qTUxXT1dXTFV3cjM0U2c3REp2R1BpclBkSnNmY1B3RWE2S0ZSMmtvUlNCLXRNU1ctem81bUFuQ08xRS0zTENYQVFuOURwdTFRQkFKcFhKeUxCdDVIeEhSNE1NQ3hLZVdzeDd4YXNQSnU1NDdTZHRqUzVLYzFkbTRlaTNZdlhuemVmNkU3RkVZYkQ1Nmt1bXpBSw?oc=5" target="_blank">股王、權王攜手嗨破新天價！外資回頭大買助台股衝36296新高點｜Yahoo財經掃描 - Yahoo股市</a>
+      <div class="news-source">Yahoo股市 ｜ Tue, 14 Apr 2026</div>
+    </div>
+    
+    <div class="news-item">
+      <a href="https://news.google.com/rss/articles/CBMi5wNBVV95cUxQcXA4Yzh6b2VGMjNrVGtXcktHYXNwelFQTWI4cy1ILThCaWxDOEhxYlNjbjVoZG9DT0hncTVrd3VoSXZERVdkNFhUNmlkTUQ3enE5cVlkb2hvaXlvaTAzM1FGZGoySWhsTUQ0b3h5V1FuRjdpaTV2Z0hsX3pwMUllZnlDREd5OWNoSXE4Z01JVDMyY1lGOWxNQmdJUENubmFDZ01JS2ZFN1IwTUpOajRnc2YzNVkxVXl1WTJVYUJpMFMwdmxNX3F6NDk2Ni1kQ3AtZGZZWjVCS0dhM3lGX0wtQ3N1RWRxa0h5dlJwU05tZ0w2MEtLaVdSam1VZ1JuUTBWdXJKU2R1WjQ2RmJHSXR2ci04NkFpUlVUQnBubi0yUmpfbG9nRW9LdHBvLWI3MWE3VkdiOUVEOV9HclNSUF91bmt0Y282Y3E5ZUlTRERWUjR2VVI4MFdvTXNGY3ZObjU3UVpNQ1drbm1MQ0FaeDVkaDJudi1YQVI4U2piRkdVUVpodDJBbEdTd1FqXzNUTGlDOEtoWmZRUXYzcFFIX0ZXMVhsak9YOUtqdm1LamNURjdJQ2RCU2ZmdUhBdGtxRm5fdF81TFZ6aDNkM2huenFnZkU5Z3dtWmpHcWl0ZlQzTE43Y3BXRWdj?oc=5" target="_blank">國安基金「不進場」台股明天會跌？投顧董座：開高機率大慎防「一變數」 - Yahoo股市</a>
+      <div class="news-source">Yahoo股市 ｜ Mon, 13 Apr 2026</div>
+    </div>
+    
+    <div class="news-item">
+      <a href="https://news.google.com/rss/articles/CBMi4wFBVV95cUxQbUR2c2VOSUl1QndZNWp0R0hCSGVKXzdfOEx0Q1FDb284a0R3ejR5SzgtRnVwb21xcTFHeHZGeThSZk1xX3UxcTlHT01vdXVBQjhmSjdBRFB3bWdoNHVuT0F4b2VIVnlLT1pxVzRwYXd2eDJUNUsyYTl2NjlRbFJDd1U2M3FMVHAxbm1DcDE4MjcteUFZa0tPZFN3MmJ4UzIybm55cHgxU25HaU8wMmxuX3NBWF9YVTZ0MnExYzltRjhCVlNXN19xcl8wdXVieFc4clB4RlUxN3kyTTl5RnBsd0Z0cw?oc=5" target="_blank">台股創高 後市陷5好6壞僵局 - Yahoo股市</a>
+      <div class="news-source">Yahoo股市 ｜ Mon, 13 Apr 2026</div>
+    </div>
+    
+    <div class="news-item">
+      <a href="https://news.google.com/rss/articles/CBMi0gNBVV95cUxNSlo5LWFCVTZvcWVla2tOSnIzTEUyNUkwYWRkaVE5bEpkNk9jSEZneVVtMDd3ZUFUNi1tdnRCRXhseXhMNDUwWTdtYTB4WkxxNDktYXZEVTJyQ01CWlVuMWFqMTZfUnFPOWs2SVEtT0k1OWFycmJmTGtWWTFNRFBaRFdnVGpEWUNVaEJEckxaX2VCdGNieUNLbDRBN3FSLU1xWkN4elFGNkp1MUNMdXVkamZoNUh4b0JrQ1pEUmZVUGxPZTQwMU5femJlc0VsaHFxRUVuQ1MtVE5ZRnNtNXQ3Mi0xTGd6cXlYem56RF84c3FVdWFqT0lBV1VIMnhmakJqM2NsQUZBUzB3bkhsX1VsSm13eTRjdVpUMzlBUnowa2o2amZwcGRmeUNJMzlDb2JuRkNhYkhMbFg4bjI2NnN3ZHg2bDFpUEdySS1UX3ktal9QZDZwaU9KcHc2OGlwZXVEMm5HelFKVlNvZ2duUHBNV1lGczdvcEtTUEN1dFBmdDNsMFVTdlY3alNwWDRJWkRQSW1UWmtQUVJEZjc5N1RLaV9GdUF6a08zNm9OM25jZ1BNaF9DLTZDSFIyOU9aNmEwU2NqVFVNZHhpVjliRVNua0Z3?oc=5" target="_blank">台股飆36296點創歷史新高！三大法人狂砸687億湧進 股民笑：韭菜外資追在最高點 - Yahoo股市</a>
+      <div class="news-source">Yahoo股市 ｜ Tue, 14 Apr 2026</div>
+    </div>
+    
+    <div class="news-item">
+      <a href="https://news.google.com/rss/articles/CBMi9gJBVV95cUxNNVdNX0F2UEpJQm92R1czb1AtZWVneDFBVDNISlVCUFRMX25oSzBNWW94dWFObk1XcVJKV3Azai1weW10T0V2TURfTGlWRGVseVRDNUtwalM0V2N2bHl2czYyMjNncUdPN1RnRm5NMWFRYm5VZjBTcVBZOVRNUWNhTm9TNlpBLXFDVUgtdHFCTDJxLWVlWG0tVjg0ZVBzcUJGa3pUWUhNZXNRMmltRmlzU2d6RFZtRkt3Rkl2ZFlkSFNDS1RpRHlBaEtkVHFJbktXYkdaQlhyNHBjLTNvMmJKZy02NGRGM29Dd0FxMl9JU2lKdmJ3dFVPMmhoY29vZGFGSDB0RXlKUkh1b1M2SEE3OHl5NGExQXpQWVRhUjZaVDVvTUlqUDJFRTdrTC1Fd29nZDFkQVRfU193ZXdGOEY2aUM4R0x1dE9OUExROGRyem1tamlMd1ZHNjYzZDRNWUpqQVRsUTVLczhEaHZQbm9UcE1zZ3h0Zw?oc=5" target="_blank">ALL IN了沒？台股今飆破3萬6千點！0050漲幅超23% 空手仔悲：看著流口水 - Yahoo股市</a>
+      <div class="news-source">Yahoo股市 ｜ Tue, 14 Apr 2026</div>
+    </div>
+    
+    <div class="news-item">
+      <a href="https://news.google.com/rss/articles/CBMi7gJBVV95cUxPVjFRNHAzLWpjcXg1aTg2RFBvRmlMZk54UlRldU9JR2l5M3JFQndteFlNbWJHZ2YxRkZ0R1h3Q0p2VHFmaWcwMjAtbXp5UkN2WUtuZ0tSVm8wdTJEUTFrOVllbEdmdFdJSXE3bnY5WjRUZ1drMzhkQkd1TjY3SThaQ3JVeWdpN1k4aGNlZVllZkN5UDZRMHN6d2VSY2ZYVzM4cVY0SkR3RWIwWWFGY2FIblVheU9wSU5ZdVRGRjV4dm1vclp2TEYtWGNsLUhQNkRfQ0xDLTVEOWRyS25XX3AtTEt2OUJjVmltY0RySTdvdkdWalpHNzN4OU9LbnhoSDdNOEwzZHo1bW9BUjBIaW1SLXJFTE0tSkh4bDlsaDBrc3RfWEYzbTZrREh2N1E0Nk9SZzNqNUZrSTNOa213TVdNWHlrZGIzOU95OUEwMlpmSkxIVDFRcHBHNjNfcDdIY0hvaTFzekozSlF0NW1OZUE?oc=5" target="_blank">台積電改寫2025元新天花板！短短2個月新增135位億萬富翁 - Yahoo股市</a>
+      <div class="news-source">Yahoo股市 ｜ Tue, 14 Apr 2026</div>
+    </div>
+    
+    <div class="news-item">
+      <a href="https://news.google.com/rss/articles/CBMiUEFVX3lxTFBhQWlOUTYwUHFGU2E2MDNIMVhfRlBicHVoRmJrcjRuRzlzWDNXOGR6UV94SkNmYm1hdjNjQUoyS2dVWnd6YnBaQkRna3Z5X2Nq?oc=5" target="_blank">財經名嘴克雷默：我很喜歡台積電但「這檔」股票更適合進場| 全球財經| 全球 - 聯合新聞網</a>
+      <div class="news-source">聯合新聞網 ｜ Sat, 11 Apr 2026</div>
+    </div>
+    
+    <div class="news-item">
+      <a href="https://news.google.com/rss/articles/CBMiWEFVX3lxTE9RYlBnbURiMHNEUXlTWEpkSjlpZFphRmEyXzJVb3o5eGpQRE9MeWVNa0g3M0szT3k2VkhjN0cwdDE5QW9TUUFBZlVldS1zbWptOVBGdk1yV0E?oc=5" target="_blank">2330 台積電 - 美國銀行將台積電股票目標價上調至2530元 - 股市爆料同學會 - CMoney</a>
+      <div class="news-source">CMoney ｜ Mon, 13 Apr 2026</div>
+    </div>
+    
+    <div class="news-item">
+      <a href="https://news.google.com/rss/articles/CBMiX0FVX3lxTE56SzZBM29DMGw3d0YtTnpJVzQ2TFhYZE9nSHNuM3U1Qk9GellPTUlEVk1UNVdiNFAzalRoM3I2UkFsQ1NQc195eDBZd2lqSUtONmNtTW5KdWdyLUxYdVY40gFkQVVfeXFMTVpsQkZhaERwcHJrb2FwWTFseGtfdVd4ajhVZWtXa1lXSHdGZnhpaVQxaHNrWHZUYzR4WVA3aUVWZHFVTmc5M19kb3NuRFc5UVk3R1dweUxmZjFRYkFjX3VoMVBoUw?oc=5" target="_blank">現在是買進台積電好時機？外媒曝上漲空間還有這麼多 - 自由財經</a>
+      <div class="news-source">自由財經 ｜ Sat, 11 Apr 2026</div>
+    </div>
+    
+    <div class="news-item">
+      <a href="https://news.google.com/rss/articles/CBMiiANBVV95cUxQRmdYVnlUUm1SZkR5dDhFS0Y0SW13SGhKX0lNbGtpY0trYjNITGJkbGY1WWRReDBSRUFXUmpoVzlmNlprMnIxMEwzMFlrdnpDZ3pmSnVSdlRQVXRPN3I1Q1BoUFBSZkxSci1Ub2RROXRCWnhGLTB5dHhHcmNVR0VLaGdzem1RRTNNMjVSc2tpMGFqZlRpWTlVRUFTTzZmZHA3MFR6YnN6dC1RU0hRNnJha1JlR3otSEJITnBzZzhfWVVKTW9kQnRFeXhfeGxMT2FJNkVZV1pGZm85UkxjTHRUdmdGNUlCUmxxN0lCMGdNLU5fMTZrVWpKUmVSVXpGeF9DU1RLYWlSME54MVZwaEVjOUVZQVRXc0lySnFwWmNFczFPeHdheHFUWk1peHRaR2ktRlNIVWJ2eVFKT2RYUlB4aDZya1V3QVBSaHVkVU9TRVBEbGI4MnJpQXB6Tzd4eXFna0FFVWluNXZuS090WGhCMGN5Z3FMYmxEeWNROW91WHhZbjExTHFyTw?oc=5" target="_blank">熱錢回來了！台股衝破3萬6大關 台積電飆上2040元、聯發科猛漲逾5% - Yahoo股市</a>
+      <div class="news-source">Yahoo股市 ｜ Tue, 14 Apr 2026</div>
+    </div>
+    
+    <div class="news-item">
+      <a href="https://news.google.com/rss/articles/CBMi1gJBVV95cUxQQ1p3U0t5ZHdmNWhnNTFoRlA2b0ZxV0wxVjQ4ZUhxd19DLXk4azlHaUowdDFvQ05rTzJNbm5Hc2xiRUJodkItWUV0VWFHTXBjN3hzMGg2cUNwYjkyaDdaZ1I0Z3VKdGswWEg4a3NHQ3liSWg3dDFjaXpTMEtxX2lKRTV1LUU1QnVlMnFaZ1pGM2QwSWs2UnFEcDJMdEJ1dENvalhMVzJjRlY4VEl2ak1VT1F2VWdseExxNU5MYU82OVhjT01rNGVsMVBOcG9DWEM1VGl6WHZNbDdzU3lORTJ0Vlo4RkNhcGlzSmp6NzJ1anY4YmJ0LVdCRk5aNnR6ejVESDhRbXplLXNCczhOUzVldEZBSjVXT2w0WXFSVTN2RDNXTjN2eFRyOEN3NzZ0akRaSlVET1VrRG92VVhxamxsVVVlME9hUnhRaU5xeENORlJ5cVZ2LXc?oc=5" target="_blank">台積電擴產點火！「半導體設備廠」炸連5漲52.3%寫新天價 弘塑、均華、意得士漲停創高 - Yahoo股市</a>
+      <div class="news-source">Yahoo股市 ｜ Mon, 13 Apr 2026</div>
+    </div>
+    
+    <div class="news-item">
+      <a href="https://news.google.com/rss/articles/CBMiX0FVX3lxTE5SR0RNRU5HWTNUTFlyZGtadlhhRTZ5SWJwWnlmUFBKT05UNnh4TnNxUkhZdW4ybXVJb0E3c1luWEdKMGRXV2cyV2ZkeGxUSl9IbUxWTW5yT25KdVlkcG440gFkQVVfeXFMUEE0T2t1bHBkWmdTaXlfLVAyNGZqR251UXRkZmhIYXk2aUVScGJGVWJORXRXc1JEY2xUb3JKbGVoY3A3Tk1tQU5SMHpHU3RWSEYzcWFyQkJGQXhySWRzbm1VZjU5Wg?oc=5" target="_blank">新光臺灣半導體飆歷史新高 4/17除息前買氣熱 - 自由財經</a>
+      <div class="news-source">自由財經 ｜ Tue, 14 Apr 2026</div>
+    </div>
+    
+    <div class="news-item">
+      <a href="https://news.google.com/rss/articles/CBMiT0FVX3lxTFByaUdBeGR6SE1WeFVLU3FseGRJVl9RcllKVDg5a1RFTDJCVVJHU0Y5Q1AtT0o2UkZITXM3Tl9xeDlnT2hRVzNsSnBPeE9EQkE?oc=5" target="_blank">〈焦點股〉AI硬投資夯！半導體ETF嗨翻 00904漲逾3%飆歷史新高 - news.cnyes.com</a>
+      <div class="news-source">news.cnyes.com ｜ Tue, 14 Apr 2026</div>
+    </div>
+    
+    <div class="news-item">
+      <a href="https://news.google.com/rss/articles/CBMizANBVV95cUxNQTFyYUVFWnljbkxEbjF1UThIcHpITktvd0x6LTRrbWQ0VGt3YmJkTnVYNGZFNnVXZ0I3S0kwQ0FHS29FLU9PSlZqRjRRMGpIamtKelREaFBNZ2NzaTljWmRZVlpoYjEzMGlpN1ZxbDJ2VGo1Yy12VElYMXNQLXlnYm8wRTFraENuNUo1WDROOVRLSmJVcDM1ekpHTnhpcGdLTkNkYkpnSl90X01kVW5JRlNZczJNc3FCMDREdGozRjhlbXdKakFoaG5Bb1BBd2tyVV9LNXNyWmtqT1VTamVGbXEzLW5WcjA1YVhfWTJvc2hEWklIZ0lLYzlvWTlFcTV2akZ2dnFkOGp6WWZwOTFNdE8teWpyeUoyYkJkanhwbFJad2hzcERiM1N1LXYxRVdvVWtJZTdwV3JrUDVXYTZfcDA0amtfdFlfeVJ5U3ZFUkNENVpzV01JM0RMQUFpVW9vUkR2aURHY0RDS0pMWTJVeEVHRjZPOXE3dm9QSXc1OG85aHc1YXVBUWNGX2J3LVhiZElGSVVMalExR2phUmpUQ05nREphYWtRM1ZsYW1zMW5WbGNpWmtCOFdNVHdvSVViaTBBeHFXNjlTRHEy?oc=5" target="_blank">Intel × Terafab 聯手震撼半導體圈，欣興、智原、景碩誰才是真正贏家？｜產業熱話｜豐雲學堂2026 年 04 月 - sinotrade.com.tw</a>
+      <div class="news-source">sinotrade.com.tw ｜ Tue, 14 Apr 2026</div>
+    </div>
+    
+    <div class="news-item">
+      <a href="https://news.google.com/rss/articles/CBMiUkFVX3lxTFA1TGduQ3VIdFRITGV2VFFJdUs1UTN2UFQ5eUp5eTlXRHZiLXlMOUVhRzI5NGF4bHRQYVYxVDFncm9ScnFqcnhCMWFWT0FxOXJYMEHSAW5BVV95cUxQOFQtWEQ5eXRFRjlmb1VjUDFLNnhqZTNhMVpGaC1NS0dVY3ZKbTNQZFFiTU9vOU5JT1lGT0t4SkltTDU2TGNZWUNjcXJTbTJWdnl5VldwcVBETDVVd3ZXS3g2R3VsbEpTUmtfN3Vwdw?oc=5" target="_blank">外資買爆台股！　今加碼689億寫史上第5大 - ETtoday財經雲</a>
+      <div class="news-source">ETtoday財經雲 ｜ Tue, 14 Apr 2026</div>
+    </div>
+    
+    
+  </div>
+
+  <!-- 各分類股票 -->
+  
+  
+  
+  
+  
+  
+  
+  <div class="section-title" style="color:#33cc33;border-color:#33cc33;background:#f0fff0">
+    📈 買入 — 2 檔
+  </div>
+  <div class="cards">
+    
+    <div class="card" style="border-color:#33cc33">
+      <div class="card-header">
+        <div>
+          <div class="stock-name">台勝科</div>
+          <div class="stock-symbol">3532.TW ｜ 半導體</div>
+        </div>
+        <div style="text-align:right;">
+          
+          <div class="price" style="color:#33cc33">179.0</div>
+          <div class="change down">
+            -1.65%
+          </div>
+          
+        </div>
+      </div>
+
+      <div style="margin:.3rem 0;">
+        <span class="pattern-badge" style="background:#f0fff0;color:#33cc33;border:1px solid #33cc33">
+          📐 W底（雙底）
+        </span>
+        
+      </div>
+
+      <div class="kd-row">
+        <div class="kd-item">K值 <span style="color:#33cc33">77.8</span></div>
+        <div class="kd-item">D值 <span style="color:#33cc33">64.6</span></div>
+        <div class="kd-item">信心 <span>80%</span></div>
+      </div>
+      <div class="confidence-bar">
+        <div class="confidence-fill" style="width:80%;background:#33cc33;"></div>
+      </div>
+      <div class="ma-row">
+        <span>MA5: <b>163.6</b></span>
+        <span>MA10: <b>148.5</b></span>
+        <span>MA20: <b>144.47</b></span>
+      </div>
+
+      
+      <div class="chart-wrap">
+        <canvas id="chart_1_buyin"></canvas>
+      </div>
+      
+
+      
+      <div style="margin-top:.6rem;font-size:.77rem;border-top:1px solid #eee;padding-top:.45rem;">
+        <b>相關新聞：</b>
+        
+        <div style="margin-top:.25rem;">
+          <a href="https://news.google.com/rss/articles/CBMimANBVV95cUxQOWtpTktvaV9TRm1qZkp5bFpyaFFYVHdCZVo4dUZ6dUJWeXNpUEdlaE03VFFMUG9aZW1hY3Vsb25KYk9ieWQzREFQMUdGb2s2YWx1M0dmX0pneVJOWHRLRWRyd01nRk8yeWs1NG1EUnBsNTZLSlJaem90YzBObUV5MHBuQTZZWXlWbTd5aDUtNS1CYmc4MjlXWkxuLWpLUHpvRmNUVDdpc1BVQWJFMWkzQ0ZfRkMxTFdtaGVUSV9yMndEWURqQU1mb3p2MEJxQnhRUlRhb1JKUXNpSUxaQTNENlZFNUNXTlBSbm5kUU92azkza3pZNGZ6UVBKRTh4dy1MS2c1VFlRclhkMTE0ODZMZkt4aXVfb3J3cFF0SEhHTFFIREROcEFlUTBNM2oxQ1J6Qml3YkhyeWUyZ0c2SlBteEs3TFJfVGQxRFhZTm9ySmlyWHFXd0dMT3pZSjB5MHR3MGpFbU9Kcmd3eGhlMUpZX28xR3Y4b3dUeWJrSTRKbGFudm9TdzFHQlJEclZTY0pfcHRBdE9Zenk?oc=5" target="_blank" style="color:#1a73e8;text-decoration:none;">
+            矽晶圓股強勢噴出！台勝科、環球晶齊飆漲停 合晶等6檔跟上勁揚 - Yahoo股市
+          </a>
+        </div>
+        
+        <div style="margin-top:.25rem;">
+          <a href="https://news.google.com/rss/articles/CBMiakFVX3lxTE9uQ1RleWZnMHktR19za0F2SDVGb1prS2ZKQy13YUpLOFFCdk9vSkNuRDl6cnJvWmw3ZTBtMEhzQU9ENGtiekgxcmRYRnpqMHRYcWJKX3FCNWpkc0REUlU0cW5kMFZpeVBkV0E?oc=5" target="_blank" style="color:#1a73e8;text-decoration:none;">
+            台勝科(3532)- - 券商分點進出買賣統計 - 股市爆料同學會 - CMoney
+          </a>
+        </div>
+        
+      </div>
+      
+    </div>
+    
+    <div class="card" style="border-color:#33cc33">
+      <div class="card-header">
+        <div>
+          <div class="stock-name">南亞科</div>
+          <div class="stock-symbol">2408.TW ｜ 記憶體</div>
+        </div>
+        <div style="text-align:right;">
+          
+          <div class="price" style="color:#33cc33">220.0</div>
+          <div class="change down">
+            -2.44%
+          </div>
+          
+        </div>
+      </div>
+
+      <div style="margin:.3rem 0;">
+        <span class="pattern-badge" style="background:#f0fff0;color:#33cc33;border:1px solid #33cc33">
+          📐 W底（雙底）
+        </span>
+        
+      </div>
+
+      <div class="kd-row">
+        <div class="kd-item">K值 <span style="color:#33cc33">52.7</span></div>
+        <div class="kd-item">D值 <span style="color:#33cc33">40.3</span></div>
+        <div class="kd-item">信心 <span>80%</span></div>
+      </div>
+      <div class="confidence-bar">
+        <div class="confidence-fill" style="width:80%;background:#33cc33;"></div>
+      </div>
+      <div class="ma-row">
+        <span>MA5: <b>217.7</b></span>
+        <span>MA10: <b>212.5</b></span>
+        <span>MA20: <b>226.95</b></span>
+      </div>
+
+      
+      <div class="chart-wrap">
+        <canvas id="chart_2_buyin"></canvas>
+      </div>
+      
+
+      
+      <div style="margin-top:.6rem;font-size:.77rem;border-top:1px solid #eee;padding-top:.45rem;">
+        <b>相關新聞：</b>
+        
+        <div style="margin-top:.25rem;">
+          <a href="https://news.google.com/rss/articles/CBMivgRBVV95cUxQRjRQMjJkVzRkdmZ2c1BTeHlfZlJPVkVjZWRPc1FHdnByN0tfNDJDc0NYMXBoVF85akZqNzJDWU1rX2lua1dsbG5xbXltZVJQR1hrNGdKV2lMaGw5QUZxaVFsRE5LRVBkNEg0LWdjSHZOeng0MU41T1hmUE5lT2ppVmtjeHQyanRaeFllQnEzOTFrOGFnVDNHQjhYdmRka0dhY21xQzlUenRVRFdzejlSanQyQ1dsam9KaGY1WGROU1NtTEoyZmJ4R01xSlBZQ2gzSEpaN1RoeDNhWXUtdXhTVTBMaDlEbGpPNGs5U29yQmtJYWhFbUp6Q1UtYmhSenpXSHpmVVp0NVZxSEtJckJNWFRZUFU0a2didkM0Q3pHNldNQ3JhVk1Sa2ZxaElaWGR2SkctVERBejZoeTZuRzdCUlNWUkdvY2hyS25idnRiNnZwbUsyUHlOWWc2MXB0SWJhQ2xVMWRSdEU4T3l2VmlQQS1BTndaN2UxVEF3LWxvaldZaDIwUHJmcllLdHR5VDJmTVhrWWNhaUxMclViT3lJUmp6eXdFVXRnb0gwQkRHT0dNcl9UQUJDWkVCVHE1aEl3Umk4NEVibWZBQThUUm0zWmdCMG52MG5nWnlpUkpONnBfemJxdkdsb3JKeW9VVlFpQzVtM2pJY3JaMGx1a3B6aEphUGYxM3hzUWFYUEpuUzFndjlqZE1IMTE5NEhfTmZqcWpsRUFrand3eHZ6WWVyQ3p5X1JBT1ZFQlE1emJn?oc=5" target="_blank" style="color:#1a73e8;text-decoration:none;">
+            全球首檔記憶體ETF「DRAM」登場 台灣南亞科、華邦電雙雙入列，大戶投複委託也可以交易｜美股觀察 - sin...
+          </a>
+        </div>
+        
+        <div style="margin-top:.25rem;">
+          <a href="https://news.google.com/rss/articles/CBMiqAJBVV95cUxQeXVLX3ZqSkZpVmowSlZFTDJXcmZDQ0pWbGJ3a3lmNS1LLWFkb211MU45NGNVWFQzYUFmZTlEd3YzWjVVRHk0NXRVTS1HVzg3N1JvX2NvaFJzQTBtWDNRVXUyeEtubk9tQ2ZuZTVKb2xJZ2c0QmdhZG9ud0N5clFvU2ZzT3N5TzhITEdCVGFmbERWR2FmV3o1R0llNW5RRnBVZGY1V2cyN2M4djdiZXJaSDRSdEMtbG5JWHdJc3FDM1Y5SkUtbU1aS1FwOGxxbkZLbFJuMTlYRDZiaHZ1OGtpWjZpQlVGNWk5UmRyRjFSczZDTF9paDNuYzRTWnZ3NDBwdmdCSWhSOVVjTFVqRHo3Wm53R0F3bkJsSzNVUzRLUmJZcU5TWWVPYg?oc=5" target="_blank" style="color:#1a73e8;text-decoration:none;">
+            記憶體又遭殺！「這檔」慘吞連6跌破25%炸18.7萬張 南亞科私募利多飆漲停後急墜噴18萬張 - Yahoo股...
+          </a>
+        </div>
+        
+      </div>
+      
+    </div>
+    
+  </div>
+  
+  
+  
+  
+  
+  <div class="section-title" style="color:#ff9900;border-color:#ff9900;background:#fff8e6">
+    ⏳ 等待 — 4 檔
+  </div>
+  <div class="cards">
+    
+    <div class="card" style="border-color:#ff9900">
+      <div class="card-header">
+        <div>
+          <div class="stock-name">台積電</div>
+          <div class="stock-symbol">2330.TW ｜ 半導體</div>
+        </div>
+        <div style="text-align:right;">
+          
+          <div class="price" style="color:#ff9900">2055.0</div>
+          <div class="change up">
+            +3.27%
+          </div>
+          
+        </div>
+      </div>
+
+      <div style="margin:.3rem 0;">
+        <span class="pattern-badge" style="background:#fff8e6;color:#ff9900;border:1px solid #ff9900">
+          📐 整理中
+        </span>
+        
+      </div>
+
+      <div class="kd-row">
+        <div class="kd-item">K值 <span style="color:#ff9900">93.2</span></div>
+        <div class="kd-item">D值 <span style="color:#ff9900">81.8</span></div>
+        <div class="kd-item">信心 <span>50%</span></div>
+      </div>
+      <div class="confidence-bar">
+        <div class="confidence-fill" style="width:50%;background:#ff9900;"></div>
+      </div>
+      <div class="ma-row">
+        <span>MA5: <b>1990.0</b></span>
+        <span>MA10: <b>1901.5</b></span>
+        <span>MA20: <b>1872.2</b></span>
+      </div>
+
+      
+      <div class="chart-wrap">
+        <canvas id="chart_1_wait"></canvas>
+      </div>
+      
+
+      
+      <div style="margin-top:.6rem;font-size:.77rem;border-top:1px solid #eee;padding-top:.45rem;">
+        <b>相關新聞：</b>
+        
+        <div style="margin-top:.25rem;">
+          <a href="https://news.google.com/rss/articles/CBMipANBVV95cUxPaEp4Y2VmUDEtNnRndnhqVmZfN2tVcnFQR0dXTVFHNzdMVVVfMkJTS0ZNT3QyRG5vRFNINEJRbHNZV003TXRvUTEwM1h6b0RlQ1B6dWRob2NsNFFyV1hVTVVmM0pSbFQ4STFpRmRuRUlCMktUa3pNMGlaRThEOWdDZmZCOVFMZFBWMDBRenBMSGtZNExLU3p1bzZkdlNzRHNNRDgzc1VTSjZNTUlrUkl5Sm5ZYUMwaUR5ZTBqSFhlY1ZuY3pmdUlTSnJCRWNSc1hRWDNBalBld3UwZnpTRmRJSGYxRXktdmRxZ1VxeThid3FVNDE5Snh4c3F0ZXhDNjNteGt6QWNlaE1CTjhrZktuNVdYSThwSndjXzFzZHFyMWNHOTk1dk1kTV8ycDItb0JLbk1kT1RwMkJrMC1vLWRRWGVrOXhxZURzRlJPb1huOGxGU2V4Zk9ma0Q5NjJSYVM5b3V4cjdPNTMwdGRjX1FMbGlrRExFQ3lGYmQ0STRmS0ZQdE51Snc3d21aRUsxZHlhZzRka2xna1FtVjd1aEhJVm5ueG0?oc=5" target="_blank" style="color:#1a73e8;text-decoration:none;">
+            還在等進場？台積電股價快追上股號 財經作家曝：9成台灣人沒持股 - Yahoo股市
+          </a>
+        </div>
+        
+        <div style="margin-top:.25rem;">
+          <a href="https://news.google.com/rss/articles/CBMinwNBVV95cUxOMklkaHdIZExUX1ZwdDcwZ2F1WF9kcFJIVUtrWVRrWkptcU9PQTAyUklXWkFaWVN3M2RCT1U1YWtVSzR1TFNEeUw0RlduYmJ6dlJZYWdGQWVobGVLcjdEU3lWeUp6NXJRVmZDMWxZWURreFdwMnE4dGVobWxDZ3ZfdVNpem4yVVd5eXBhZTNtYVFmMkpITm42S3BCdEk5eFNKZ1ZyQU44dEdYOWFtb1BKU19zTlNRQ1dTUFo5REZtOTYyRmZ3Vk9ReW1sV01MSThvd3B4eFJiQ0htVjJRZGxUV3VBUnJRc2F5ZDJ1WnVCbDQtdDhDaGt3N1ljZkZwRkNFUWdzWWluY3JtUllsZGV2SEc0RGhiZ2pBSTNRVUZZYWxPbDhxZFJkVHRwbVNyUldhUk14NVFxVDJ0MkZTTF9yMnZYMlVUR1JrblVMSkJ6Y00tUzlMV0F6bzY3SXZoWDVqR2ZxNkFMZFlwb0dsUFpmM05oRjBwcGptSVk1aFpVYVN4b1RNcnNSUkJtX2ZjeFZCOHNOcXBxSlRuZlZOcnA4?oc=5" target="_blank" style="color:#1a73e8;text-decoration:none;">
+            【神山股民2】195萬零股股東到底持有多少台積電股票？ 破4300億元 - Yahoo股市
+          </a>
+        </div>
+        
+      </div>
+      
+    </div>
+    
+    <div class="card" style="border-color:#ff9900">
+      <div class="card-header">
+        <div>
+          <div class="stock-name">世界先進</div>
+          <div class="stock-symbol">5347.TW ｜ 半導體</div>
+        </div>
+        <div style="text-align:right;">
+          
+          <div class="price" style="color:#999;">N/A</div>
+          
+        </div>
+      </div>
+
+      <div style="margin:.3rem 0;">
+        <span class="pattern-badge" style="background:#fff8e6;color:#ff9900;border:1px solid #ff9900">
+          📐 N/A
+        </span>
+        
+      </div>
+
+      <div class="kd-row">
+        <div class="kd-item">K值 <span style="color:#ff9900">50</span></div>
+        <div class="kd-item">D值 <span style="color:#ff9900">50</span></div>
+        <div class="kd-item">信心 <span>0%</span></div>
+      </div>
+      <div class="confidence-bar">
+        <div class="confidence-fill" style="width:0%;background:#ff9900;"></div>
+      </div>
+      <div class="ma-row">
+        <span>MA5: <b></b></span>
+        <span>MA10: <b></b></span>
+        <span>MA20: <b></b></span>
+      </div>
+
+      
+
+      
+      <div style="margin-top:.6rem;font-size:.77rem;border-top:1px solid #eee;padding-top:.45rem;">
+        <b>相關新聞：</b>
+        
+        <div style="margin-top:.25rem;">
+          <a href="https://news.google.com/rss/articles/CBMiowNBVV95cUxNZTB2X0dRRnBaVzhSWks0RGpvMW5tRmx0UXk4NkMyT2psTW1xVGxzc2Vaal9MakdpY2pXbUV4bDhwWVhMUzdVNXVoUXhwT3dIUUxBU2pRa042UjJpUVlFLUlESGp1MTRCUGlXQW1Uck5kUlFMekUwX2IwZ21GVXlidFk3R2xCT0VaU2NNU3AyTnBIeFJUZzVsQTBRZkpUWDRYcTFuNWdic1NzVFo1a1pNelRYV2FIb0Jka3BfaFJIV2hyMHhnRlBJckcxMzE2ai1kVUVpVTgyZmxESHpSOTRiUTlyUHRQdFlxckthSjRSYTdZek1QYXVYQ0FOS1NVZWxSYUJ6alhKalFHNTRhUU5lZFh1blV6U1FDX19lQjc5S3prUEk2VG1YN2tYZGlNQzN6V3duV3ZRR2tyUlVGNURMaHZfUlVWYVJ5ZlljUmo2S0h2OHp4X05sVFRiUGN6bWlDbUE4N21EZ2JQMWNqSmlzNTNNcVZpMS1ob2FjVjhJeGZGTkpEOU9Dci03Qzg2VUtubUVieEpOdkdiMjRPZHRQZHRRdw?oc=5" target="_blank" style="color:#1a73e8;text-decoration:none;">
+            世界先進法說變法會！開盤不到10分鐘摜跌停 分析師：過度反應 - Yahoo股市
+          </a>
+        </div>
+        
+        <div style="margin-top:.25rem;">
+          <a href="https://news.google.com/rss/articles/CBMitARBVV95cUxOTHJnUUd6Z1R4MEh0cm1oNV9MTHlkZlQzVTBPZFJWSElXUm1namtJRnJYWVNiSUZFNVBwaVdUNnlfYTVjVHhpaFEwUVcxMzVtSjN3NEtoTXctOGpaMjZ1dHNLUWdtYlVrdHhpSGc0STl2WFdrZF9KYnBEcmh1aUFZLUlqZVVuMjdCcDBvUC14Vy0tQW5WX243Wmk4ZDdVTlVUREVvaGVyX3hDVGpzUTdiZUdXcWV4NEVSSm0ydS1VUXhncF9yQnptNzJEQVEzUkk1OFVPd1lya1UzbHhXeFBzLXJNeUdiZ0Vod1pEWFJaN1pxNzBIa0syOUoydXhPR3lELUhvbzAxS2cwcHhIUTJTNTJWSTgtSjNpeHB1YlVyTTY2UEk2Z0ZhaEJtQXJHYm1EVHROdGV1OE52R0F0VmtxVzRYa0trVFF5OVUyYU5MLW1vamdvTDVLczlOaUhZZjlJQnFMdmVyZHpHM3VNcTZGQkpXNXhUZ1BaREZGQjM0NmVKZEs3VzdCcDZxenM4WC1FOXhGOUVCeHJ0QnZJUVJJTVVITkxzWk04TkFSa0pZdEJmaHpOZ0RqQm1VU1VaZmZORDNSSGEtQkViTTNzQVJBRExRZjZyOFdsOUVRa2RHRTEzeWFxU21zTlctSlBrQUo1dk10dnVaUUxOdks4UVh3bzJrVzhTV0VOSG5jWkpoREJDYVlJT2gwWkIzYWpzRnBsSThnSkJJZ0lpVFJQLWljcElKUEQ?oc=5" target="_blank" style="color:#1a73e8;text-decoration:none;">
+            世界法說／2025年獲利創三年新高，第四季毛利率回升，2026配息4.5元展現股東回饋決心｜股市話題 - si...
+          </a>
+        </div>
+        
+      </div>
+      
+    </div>
+    
+    <div class="card" style="border-color:#ff9900">
+      <div class="card-header">
+        <div>
+          <div class="stock-name">旺宏</div>
+          <div class="stock-symbol">2337.TW ｜ 記憶體</div>
+        </div>
+        <div style="text-align:right;">
+          
+          <div class="price" style="color:#ff9900">155.5</div>
+          <div class="change up">
+            +5.42%
+          </div>
+          
+        </div>
+      </div>
+
+      <div style="margin:.3rem 0;">
+        <span class="pattern-badge" style="background:#fff8e6;color:#ff9900;border:1px solid #ff9900">
+          📐 整理中
+        </span>
+        
+      </div>
+
+      <div class="kd-row">
+        <div class="kd-item">K值 <span style="color:#ff9900">76.2</span></div>
+        <div class="kd-item">D值 <span style="color:#ff9900">66.1</span></div>
+        <div class="kd-item">信心 <span>50%</span></div>
+      </div>
+      <div class="confidence-bar">
+        <div class="confidence-fill" style="width:50%;background:#ff9900;"></div>
+      </div>
+      <div class="ma-row">
+        <span>MA5: <b>148.2</b></span>
+        <span>MA10: <b>137.7</b></span>
+        <span>MA20: <b>138.35</b></span>
+      </div>
+
+      
+      <div class="chart-wrap">
+        <canvas id="chart_3_wait"></canvas>
+      </div>
+      
+
+      
+      <div style="margin-top:.6rem;font-size:.77rem;border-top:1px solid #eee;padding-top:.45rem;">
+        <b>相關新聞：</b>
+        
+        <div style="margin-top:.25rem;">
+          <a href="https://news.google.com/rss/articles/CBMijANBVV95cUxNMXlCSnhZRVNiSzBsd1ZOd2lvaUpxSFQ5SnZzamhvV3ZGbGs3OUN4dUZEYk5hV0tkLV84SjY5TTFzZXh4M3BFR0lSX0xnTlpEOXVEMnQ3b2RuV0g1MUFocEdxeWJaWDVSZFN2Q2FiVXpmUkVDWDlheUEzbGEtLS1YTGJhaEloUXRDdW9tY3hxeXJOcl9ONHZiTlRfN3FRWVBZX1VXdHJEVFM5cUVINFhjeVJSRXE5U1FKaTROeV8zOFlNajludzZ3NUFzMUZBNHlEZG96S1hwWXZLX0pBOFYxdU9CaTFjX2c2SzV6OG83bndfdFVjTl9nRVY3SnZleWwtU1JLbFdqU2pKZ1ZiUGY1ZjdCX3loSjlKNnM0YzE2TUpnamkxNmRoZ0J4RGlaUHF2RFB4MXlZZklCWnc3aVdVZEdhR3Ffc2tDcjBVZm1zQzJpUU9YYlltQ245QWQzX21Ba3loNnM2NWI1anpxaDBwTjdoRlpOWnVFSEhPYjFsdF9ialA0X28wTUlRcnA?oc=5" target="_blank" style="color:#1a73e8;text-decoration:none;">
+            又有2檔要被關！旺宏今起2度處置 這檔黃仁勳背板股也遭盯上 - Yahoo股市
+          </a>
+        </div>
+        
+        <div style="margin-top:.25rem;">
+          <a href="https://news.google.com/rss/articles/CBMigwRBVV95cUxPbnV2MjFEY01MYkVZZWx2S2MzMGg0T0JFXzJ1eDh4bG43WFhjOXZFZWZGLXFNT1QxX0laQjZzaWNZcFh1cksxa243cXdtcXFoRC03dTNVZGtSN1RTMG13OVJlSzJFWVZzS0kwcWJpV1pkYnNvM3A2M1V2X2RJdUNpQU1LcjRxcHdtNFZwR3VYVTRpSGc1dkVwLWlQWDBwWlJ5WWxpSEZpTDZOV0hscEtVTzVST0NKclltOW1RTzEzQmlTTllFaEtGT3daa29pd3BEV29rOXVLYzQ0RXJBZUhMS2FQUnlLSDZ3YUVTelUyYU1sOXJMb1pZa0oyOWZHZ3hwUUQ5YTBBc0dCZU5zMllQenZ1blFTdzNDVFR4LVRRdnhvbkVjNHhmUDJ1YlRpQjN2aVo1TzF5Zm44Wjl5NVlKTEtoVENTaEo1MF9kbXo2YlFoaENETGM1c3QwX2Iwenl1ZEVyRW5SMWJJNmdPUzFVZFBsX2swbWNYRk56LVB1THJHbWZZTmd4MkRIWGJyZWllQW9xNUoyd1MxRnlDVW42ZDlNZUxpUWNFOTNzWllmWGFET2FZUU9PaDB5OWJxVmMtVjVYVlhQOHJ3bjAxX2ZtWlhYUGl1cHRmdVd1SHJOMkFHNk4wNlFKa2tPMzhBbExBSGZKMnVhRW1sX1RqV2NxOU1BTQ?oc=5" target="_blank" style="color:#1a73e8;text-decoration:none;">
+            旺宏做什麼？連兩日漲停背後的邏輯是什麼? 本土法人及外資怎麼看?｜股市話題｜豐雲學堂2026 年 04 月 -...
+          </a>
+        </div>
+        
+      </div>
+      
+    </div>
+    
+    <div class="card" style="border-color:#ff9900">
+      <div class="card-header">
+        <div>
+          <div class="stock-name">兆赫</div>
+          <div class="stock-symbol">2485.TW ｜ 電子零組件</div>
+        </div>
+        <div style="text-align:right;">
+          
+          <div class="price" style="color:#ff9900">78.3</div>
+          <div class="change down">
+            -3.09%
+          </div>
+          
+        </div>
+      </div>
+
+      <div style="margin:.3rem 0;">
+        <span class="pattern-badge" style="background:#fff8e6;color:#ff9900;border:1px solid #ff9900">
+          📐 整理中
+        </span>
+        
+      </div>
+
+      <div class="kd-row">
+        <div class="kd-item">K值 <span style="color:#ff9900">47.2</span></div>
+        <div class="kd-item">D值 <span style="color:#ff9900">42.8</span></div>
+        <div class="kd-item">信心 <span>50%</span></div>
+      </div>
+      <div class="confidence-bar">
+        <div class="confidence-fill" style="width:50%;background:#ff9900;"></div>
+      </div>
+      <div class="ma-row">
+        <span>MA5: <b>75.1</b></span>
+        <span>MA10: <b>76.78</b></span>
+        <span>MA20: <b>76.86</b></span>
+      </div>
+
+      
+      <div class="chart-wrap">
+        <canvas id="chart_4_wait"></canvas>
+      </div>
+      
+
+      
+      <div style="margin-top:.6rem;font-size:.77rem;border-top:1px solid #eee;padding-top:.45rem;">
+        <b>相關新聞：</b>
+        
+        <div style="margin-top:.25rem;">
+          <a href="https://news.google.com/rss/articles/CBMi0gRBVV95cUxNdmVZcXc5RmplSnRjVF9xblBZVkNxdnJYV01vaDUyZVd5N090N0c4N1ladkNXZm5ON0JlVTlNT0xITTRRSm5yMlZiU1FOdWNiaGNPUmRrdGQwZnFHcVpyci1MWjJ5TVQwcVV4ZE5nOWhVRDI0Ny04ZnlYVmZSTTl0ZXJVSng0ck1adUE5M0VCb3ZDUXhXTHlicnJ5SUN6d3dlaGo4UDQ3MlJRY3ZDa3ZLUXJETHY1X0JhVkh3MlhPZEVhMmlWdGZ0aUZvb2NFdzBfaVVqNklodEVtajF1NGUtY3RKdGlJcTZEdW1EOHZmLVhZQzNVT2JESjdoODByLTBKQ2xQUTVtZElncGUxYkFjWTRudG85WFVUUzhaVjhZNzNBQ1hZMTNENEt2WFhNRV9QTjJYT0IzNFdUb3I3bkpORVJieVA5LXlqZHhMLVZGMnowLTQyUEhIZ0FyVUJFd1VXTEFjTFB0LVVINFg2Zi1lRnhLZmJ4Y0oxekdGcVAwb3dNTDNRTzhpZGxKcFVVMG5ZQlUyUWRrMUExVUZ0VGUwSGhDU1NCTk83eERjWG1qajBkWnVGdHhRQnBNWWFLbW4zejRLVGwtMk5adDNyRE9CZzBPMmVJTUYweEFyZ3RUTHBQbkVFOTlrYnJTdFhNSC1DMFViLWwyYTFad2NEV2pUekh5Y3Y2Q1hBeERvVUI3bmpQMDYzY2VSQW4ySGNoY2xuZ3pUSUJrb1VJZXZvd0gxVkYyYTRyVVdTRkUxWlNBd3ZpOUgtekE5THhOai12c3o2dHc?oc=5" target="_blank" style="color:#1a73e8;text-decoration:none;">
+            兆赫 (2485) 是做什麼的？搭寬頻升級、低軌衛星兩大浪潮「股價今年漲幅158%」，競爭優勢一次看！｜股市話...
+          </a>
+        </div>
+        
+        <div style="margin-top:.25rem;">
+          <a href="https://news.google.com/rss/articles/CBMi4wNBVV95cUxPdjJmb2M5TFJrM2lRZmNFc2dqSnVaRU95TnFNUzB2TjJLQnVSazk2T3FDRG9UcDZCY2E5OW01b19KVFlKd21aZ0pyTExzeE1rM2hRU2h1SHo2cmlRdS12UlA3MEtGQWt1d3gybGRVaTVFSDM0QlZWcjFsVjJNZnV4d1lUb0Fid1JnelNIeTNjRXJwWlhBNXp6NElxMF9NZDl4UTVSX29LT1B4YWU4WS1CVjBDSko5b0xLMFcxS2haTER4TlBTU1JNa2lreXhuOVctQXVleXNxal94cTBUUXdBWVdpSzktWEMwLVBxaWJ6c1QyTFhMRnFxUDJOcTRhbXJRTG95alFaZmZkRUdSZC1ES1FXaE5ZWmV6X0VQbEw2QUVMZFptMXgzSEVWVEplZlBxZElieXFaUERyNGVFazRxNG9UNkRVTDV1T2ZBdU9mT19sRmRCVk54V2prSWpPNGxoN01NNDJQeGUyUG1VQVFKYVRsWFFzYUdKMGpfYWpzMnZxTXYxdkVFbHBGMHVZUlNsWEVwM3RwVUdpSUwyT01BREN3endDMlMwSU8wWVRBbTlQYWFfV3hEMm85cUFnbm5EcXZWdnUtTHZxRzNyMWs3OVVraDliR05OTlNLN2hlOWxtTXc?oc=5" target="_blank" style="color:#1a73e8;text-decoration:none;">
+            【Hot台股】兆赫爆量10萬張逆勢飆漲停！網喊「要小心」 專家：有獲利先調節 - Yahoo股市
+          </a>
+        </div>
+        
+      </div>
+      
+    </div>
+    
+  </div>
+  
+  
+  
+  
+  
+  
+  
+  
+
+</div>
+
+<footer>
+  本報告由自動化程式依技術分析產生，僅供參考，不構成投資建議。<br>
+  資料來源：Yahoo Finance ｜ 分析時間：2026-04-14 22:03
+</footer>
+
+</div><!-- /#main-body -->
+
+<!-- ── Scripts ── -->
+<script>
+// ── 圖表 ────────────────────────────────────────
+const chartData = [{"id": "chart_1_wait", "data": {"dates": ["2026-03-02", "2026-03-03", "2026-03-04", "2026-03-05", "2026-03-06", "2026-03-09", "2026-03-10", "2026-03-11", "2026-03-12", "2026-03-13", "2026-03-16", "2026-03-17", "2026-03-18", "2026-03-19", "2026-03-20", "2026-03-23", "2026-03-24", "2026-03-25", "2026-03-26", "2026-03-27", "2026-03-30", "2026-03-31", "2026-04-01", "2026-04-02", "2026-04-07", "2026-04-08", "2026-04-09", "2026-04-10", "2026-04-13", "2026-04-14"], "k": [50.0, 50.0, 50.0, 50.0, 38.5, 30.9, 31.1, 44.3, 46.6, 46.1, 43.9, 47.9, 58.1, 54.7, 40.9, 32.5, 28.3, 34.9, 37.9, 34.6, 23.1, 15.4, 37.8, 39.7, 55.4, 70.3, 80.2, 86.8, 89.8, 93.2], "d": [50.0, 50.0, 50.0, 50.0, 46.2, 41.1, 37.8, 39.9, 42.2, 43.5, 43.6, 45.1, 49.4, 51.1, 47.7, 42.7, 37.9, 36.9, 37.2, 36.4, 31.9, 26.4, 30.2, 33.4, 40.7, 50.6, 60.5, 69.2, 76.1, 81.8], "close": [1968.58, 1928.71, 1858.93, 1893.82, 1883.85, 1804.11, 1843.98, 1933.69, 1878.87, 1858.93, 1839.0, 1870.0, 1905.0, 1850.0, 1840.0, 1810.0, 1810.0, 1845.0, 1840.0, 1820.0, 1780.0, 1760.0, 1855.0, 1810.0, 1860.0, 1950.0, 1955.0, 2000.0, 1990.0, 2055.0], "high": [1988.51, 1973.56, 1903.79, 1953.63, 1893.82, 1804.11, 1883.85, 1943.66, 1908.77, 1878.87, 1873.89, 1880.0, 1910.0, 1880.0, 1870.0, 1815.0, 1850.0, 1875.0, 1865.0, 1825.0, 1800.0, 1790.0, 1855.0, 1865.0, 1860.0, 1950.0, 1955.0, 2000.0, 1995.0, 2055.0], "low": [1933.69, 1928.71, 1858.93, 1888.84, 1873.89, 1764.24, 1824.05, 1868.9, 1878.87, 1834.02, 1839.0, 1860.0, 1890.0, 1850.0, 1840.0, 1785.0, 1800.0, 1845.0, 1840.0, 1800.0, 1780.0, 1760.0, 1830.0, 1805.0, 1835.0, 1925.0, 1930.0, 1970.0, 1975.0, 2010.0], "open": [1933.69, 1963.59, 1888.84, 1933.69, 1873.89, 1769.23, 1863.92, 1878.87, 1893.82, 1834.02, 1868.9, 1875.0, 1900.0, 1875.0, 1860.0, 1790.0, 1850.0, 1865.0, 1850.0, 1805.0, 1780.0, 1775.0, 1840.0, 1865.0, 1850.0, 1935.0, 1945.0, 1975.0, 1985.0, 2015.0], "volume": [48884884, 43090471, 68160943, 48120463, 30082724, 76459172, 41375691, 36167313, 34040589, 31214304, 31249086, 23812211, 23068156, 31040569, 46312322, 34902948, 27001025, 40964040, 20958470, 28974140, 39889700, 49221091, 35537379, 25132417, 17953562, 46515921, 31835073, 28637625, 28968757, 44579996]}, "color": "#ff9900"}, {"id": "chart_2_wait", "data": {"dates": [], "k": [], "d": [], "close": []}, "color": "#ff9900"}, {"id": "chart_1_buyin", "data": {"dates": ["2026-03-02", "2026-03-03", "2026-03-04", "2026-03-05", "2026-03-06", "2026-03-09", "2026-03-10", "2026-03-11", "2026-03-12", "2026-03-13", "2026-03-16", "2026-03-17", "2026-03-18", "2026-03-19", "2026-03-20", "2026-03-23", "2026-03-24", "2026-03-25", "2026-03-26", "2026-03-27", "2026-03-30", "2026-03-31", "2026-04-01", "2026-04-02", "2026-04-07", "2026-04-08", "2026-04-09", "2026-04-10", "2026-04-13", "2026-04-14"], "k": [50.0, 50.0, 50.0, 50.0, 38.7, 25.8, 25.7, 32.7, 39.3, 45.0, 60.6, 68.0, 78.7, 78.4, 71.8, 59.0, 47.7, 40.9, 43.9, 41.7, 39.4, 28.9, 27.8, 23.2, 20.1, 34.3, 52.0, 68.0, 78.7, 77.8], "d": [50.0, 50.0, 50.0, 50.0, 46.2, 39.4, 34.9, 34.1, 35.9, 38.9, 46.1, 53.4, 61.9, 67.4, 68.9, 65.6, 59.6, 53.4, 50.2, 47.4, 44.7, 39.4, 35.5, 31.4, 27.6, 29.9, 37.3, 47.5, 57.9, 64.6], "close": [135.5, 125.5, 124.5, 126.0, 122.5, 110.5, 118.5, 125.0, 126.0, 126.0, 133.0, 137.0, 150.5, 153.0, 143.5, 135.0, 132.0, 133.0, 146.0, 141.5, 140.5, 130.5, 135.0, 130.5, 130.5, 141.0, 150.5, 165.5, 182.0, 179.0], "high": [140.0, 138.0, 126.5, 132.5, 126.0, 113.5, 120.0, 126.0, 126.0, 128.0, 135.0, 142.5, 150.5, 165.0, 157.0, 140.5, 141.0, 137.5, 146.0, 149.0, 142.0, 141.0, 137.0, 137.5, 134.5, 143.5, 153.5, 165.5, 182.0, 194.5], "low": [130.5, 124.0, 116.0, 123.5, 122.0, 110.5, 113.0, 120.0, 121.5, 121.0, 127.0, 135.0, 139.5, 150.5, 141.0, 134.5, 131.0, 127.5, 138.5, 138.0, 134.5, 130.5, 133.0, 129.5, 130.5, 134.0, 138.5, 152.0, 173.0, 177.5], "open": [133.5, 136.0, 122.0, 131.0, 125.0, 111.5, 115.0, 120.5, 123.0, 123.0, 128.0, 138.0, 141.0, 151.0, 155.5, 135.0, 138.5, 137.0, 138.5, 148.5, 138.5, 139.5, 137.0, 136.0, 134.5, 134.5, 143.0, 153.0, 173.5, 184.0], "volume": [5271360, 4658905, 4767080, 2556200, 1267937, 1844996, 2334011, 1586028, 1710504, 1242628, 2456321, 3473009, 6901063, 10530888, 5359400, 2991722, 2259801, 3892239, 3768322, 6098743, 1874315, 1823359, 924513, 1047901, 614638, 2963327, 4390780, 5530966, 5619293, 10321216]}, "color": "#33cc33"}, {"id": "chart_2_buyin", "data": {"dates": ["2026-03-02", "2026-03-03", "2026-03-04", "2026-03-05", "2026-03-06", "2026-03-09", "2026-03-10", "2026-03-11", "2026-03-12", "2026-03-13", "2026-03-16", "2026-03-17", "2026-03-18", "2026-03-19", "2026-03-20", "2026-03-23", "2026-03-24", "2026-03-25", "2026-03-26", "2026-03-27", "2026-03-30", "2026-03-31", "2026-04-01", "2026-04-02", "2026-04-07", "2026-04-08", "2026-04-09", "2026-04-10", "2026-04-13", "2026-04-14"], "k": [50.0, 50.0, 50.0, 50.0, 34.3, 22.8, 23.2, 33.4, 34.4, 34.9, 56.3, 65.0, 71.4, 68.8, 54.5, 38.9, 30.9, 29.5, 28.1, 24.9, 23.1, 15.4, 16.6, 12.4, 13.2, 25.0, 20.9, 33.3, 53.2, 52.7], "d": [50.0, 50.0, 50.0, 50.0, 44.8, 37.4, 32.7, 32.9, 33.4, 33.9, 41.4, 49.3, 56.6, 60.7, 58.6, 52.1, 45.0, 39.8, 35.9, 32.2, 29.2, 24.6, 21.9, 18.7, 16.9, 19.6, 20.0, 24.4, 34.0, 40.3], "close": [285.0, 256.5, 234.5, 257.5, 233.0, 210.0, 231.0, 254.0, 239.5, 238.0, 261.5, 271.5, 276.0, 260.0, 234.0, 223.0, 216.5, 226.5, 225.5, 219.5, 220.5, 198.5, 211.0, 200.5, 206.0, 223.0, 205.0, 215.0, 225.5, 220.0], "high": [291.0, 288.0, 246.5, 257.5, 262.0, 210.0, 231.0, 254.0, 261.5, 245.5, 261.5, 284.5, 288.5, 272.5, 264.5, 230.0, 227.0, 229.5, 249.0, 220.0, 227.0, 210.0, 213.0, 219.0, 212.0, 223.5, 222.0, 220.0, 227.5, 240.0], "low": [267.5, 256.5, 231.0, 257.5, 232.5, 210.0, 215.0, 240.0, 239.0, 235.0, 245.5, 266.5, 271.5, 260.0, 234.0, 217.5, 204.0, 218.5, 225.0, 207.0, 213.5, 198.5, 205.0, 200.0, 202.5, 214.5, 204.0, 209.0, 214.5, 220.0], "open": [268.0, 287.0, 238.0, 257.5, 259.0, 210.0, 220.0, 245.0, 257.0, 237.5, 247.0, 267.0, 284.5, 268.5, 264.5, 217.5, 226.5, 226.5, 249.0, 217.0, 215.0, 207.5, 211.5, 217.0, 210.5, 217.0, 222.0, 211.0, 218.5, 238.5], "volume": [52496960, 87454156, 105278188, 21082824, 158410557, 20638661, 114034338, 89192007, 149941247, 94195866, 91624503, 130911740, 100661642, 81924960, 154684660, 76862997, 147786363, 96516285, 181359174, 131297286, 124793584, 144693809, 120891443, 118678529, 72854559, 94079973, 88390863, 92689098, 96214475, 161220918]}, "color": "#33cc33"}, {"id": "chart_3_wait", "data": {"dates": ["2026-03-02", "2026-03-03", "2026-03-04", "2026-03-05", "2026-03-06", "2026-03-09", "2026-03-10", "2026-03-11", "2026-03-12", "2026-03-13", "2026-03-16", "2026-03-17", "2026-03-18", "2026-03-19", "2026-03-20", "2026-03-23", "2026-03-24", "2026-03-25", "2026-03-26", "2026-03-27", "2026-03-30", "2026-03-31", "2026-04-01", "2026-04-02", "2026-04-07", "2026-04-08", "2026-04-09", "2026-04-10", "2026-04-13", "2026-04-14"], "k": [50.0, 50.0, 50.0, 50.0, 43.9, 29.2, 21.5, 25.8, 27.9, 41.5, 61.0, 74.0, 82.7, 88.2, 88.0, 82.7, 72.8, 67.6, 51.0, 39.8, 34.2, 22.8, 22.2, 26.2, 41.2, 60.8, 63.5, 67.4, 71.3, 76.2], "d": [50.0, 50.0, 50.0, 50.0, 48.0, 41.7, 35.0, 31.9, 30.6, 34.2, 43.1, 53.4, 63.2, 71.5, 77.0, 78.9, 76.9, 73.8, 66.2, 57.4, 49.7, 40.7, 34.5, 31.8, 34.9, 43.5, 50.2, 55.9, 61.0, 66.1], "close": [116.0, 104.5, 98.0, 107.5, 102.5, 92.3, 90.7, 99.7, 99.0, 108.5, 119.0, 130.5, 143.5, 157.0, 160.0, 148.5, 136.5, 142.0, 128.0, 125.0, 128.0, 115.5, 127.0, 129.0, 136.5, 150.0, 142.0, 146.0, 147.5, 155.5], "high": [120.5, 117.5, 103.0, 107.5, 110.5, 92.3, 98.8, 99.7, 109.0, 108.5, 119.0, 130.5, 143.5, 157.5, 170.0, 155.0, 145.0, 144.0, 137.0, 125.0, 129.0, 120.5, 127.0, 138.0, 137.5, 150.0, 154.0, 156.0, 153.5, 162.0], "low": [105.5, 104.5, 94.2, 105.0, 102.5, 92.3, 88.8, 93.3, 98.5, 104.5, 119.0, 130.5, 135.0, 139.5, 145.0, 147.0, 134.0, 134.0, 128.0, 115.5, 120.0, 115.5, 125.0, 127.0, 134.0, 150.0, 137.0, 141.5, 144.0, 147.0], "open": [105.5, 116.5, 97.0, 107.5, 107.0, 92.3, 97.8, 93.3, 102.5, 108.0, 119.0, 130.5, 137.0, 139.5, 170.0, 147.0, 145.0, 144.0, 137.0, 118.0, 120.0, 120.5, 125.0, 138.0, 135.5, 150.0, 154.0, 149.0, 147.0, 153.0], "volume": [176612499, 228206911, 209068319, 79660540, 172718919, 31979696, 315844331, 130474935, 269829466, 235674254, 26742034, 61678842, 240034785, 82361568, 68366567, 42551616, 39406759, 23767286, 35817030, 46595086, 19165097, 25217116, 15068445, 26437911, 14551167, 21738095, 168256680, 196931578, 104889620, 255460038]}, "color": "#ff9900"}, {"id": "chart_4_wait", "data": {"dates": ["2026-03-02", "2026-03-03", "2026-03-04", "2026-03-05", "2026-03-06", "2026-03-09", "2026-03-10", "2026-03-11", "2026-03-12", "2026-03-13", "2026-03-16", "2026-03-17", "2026-03-18", "2026-03-19", "2026-03-20", "2026-03-23", "2026-03-24", "2026-03-25", "2026-03-26", "2026-03-27", "2026-03-30", "2026-03-31", "2026-04-01", "2026-04-02", "2026-04-07", "2026-04-08", "2026-04-09", "2026-04-10", "2026-04-13", "2026-04-14"], "k": [50.0, 50.0, 50.0, 50.0, 66.7, 68.2, 66.4, 75.6, 83.7, 83.1, 88.7, 92.5, 92.9, 90.2, 82.5, 81.0, 75.1, 76.3, 74.4, 72.6, 69.8, 68.0, 73.1, 69.8, 48.3, 33.6, 25.3, 27.4, 44.2, 47.2], "d": [50.0, 50.0, 50.0, 50.0, 55.6, 59.8, 62.0, 66.5, 72.2, 75.8, 80.1, 84.2, 87.1, 88.1, 86.3, 84.5, 81.4, 79.7, 77.9, 76.1, 74.0, 72.0, 72.4, 71.5, 63.8, 53.7, 44.2, 38.6, 40.5, 42.8], "close": [49.5, 54.4, 49.8, 51.1, 56.2, 51.4, 50.3, 55.3, 60.8, 62.0, 68.2, 75.0, 80.0, 80.1, 73.9, 78.0, 75.2, 80.0, 78.7, 80.4, 79.6, 79.6, 81.5, 78.5, 73.1, 73.0, 69.9, 73.5, 80.8, 78.3], "high": [49.5, 54.4, 54.1, 54.7, 56.2, 54.2, 56.0, 55.3, 60.8, 64.9, 68.2, 75.0, 82.0, 85.5, 80.3, 78.5, 80.5, 80.4, 83.2, 81.0, 80.4, 80.6, 84.0, 81.4, 84.3, 77.8, 75.4, 75.4, 80.8, 86.9], "low": [42.35, 50.6, 49.0, 50.5, 50.3, 50.6, 50.1, 51.5, 57.4, 59.6, 62.5, 71.5, 77.1, 78.7, 72.5, 69.0, 74.0, 78.0, 78.0, 75.6, 77.0, 77.6, 80.7, 78.0, 72.5, 72.5, 68.5, 72.1, 72.0, 76.9], "open": [42.45, 53.1, 54.0, 53.6, 50.5, 52.6, 54.6, 51.8, 57.5, 62.6, 64.3, 71.5, 79.7, 79.5, 80.1, 69.5, 80.4, 78.6, 81.5, 75.6, 79.0, 79.1, 84.0, 81.4, 80.7, 77.2, 73.4, 73.0, 74.0, 86.9], "volume": [50265250, 95363372, 120231844, 95046469, 111243032, 84166723, 141648532, 80682255, 70317857, 234833571, 145645802, 80107468, 159012698, 129875984, 19403914, 14943001, 11293068, 13685002, 10536265, 11987118, 6503727, 9345398, 7819106, 6994597, 52632473, 31724579, 56983819, 40198703, 58212799, 102725633]}, "color": "#ff9900"}];
+chartData.forEach(function(item){
+  const canvas = document.getElementById(item.id);
+  if(!canvas || !item.data || !item.data.dates || !item.data.dates.length) return;
+  new Chart(canvas,{
+    type:'line',
+    data:{
+      labels: item.data.dates,
+      datasets:[
+        {label:'K值',data:item.data.k,borderColor:'#e67e00',backgroundColor:'transparent',
+         borderWidth:1.5,pointRadius:0,tension:.3},
+        {label:'D值',data:item.data.d,borderColor:'#0066cc',backgroundColor:'transparent',
+         borderWidth:1.5,pointRadius:0,tension:.3}
+      ]
+    },
+    options:{
+      responsive:true,maintainAspectRatio:false,
+      plugins:{
+        legend:{display:true,position:'top',labels:{font:{size:10},boxWidth:14}},
+        tooltip:{mode:'index',intersect:false}
+      },
+      scales:{
+        x:{ticks:{maxTicksLimit:6,font:{size:9}},grid:{display:false}},
+        y:{min:0,max:100,ticks:{stepSize:20,font:{size:9}},grid:{color:'rgba(0,0,0,.05)'}}
+      },
+      animation:{duration:400}
+    }
+  });
+});
+
+// ── 自選股管理 ────────────────────────────────────
+const API = 'http://localhost:8899';
+
+// 目前報告中已有的股票（從伺服器 config 取得，預設顯示此份報告的）
+const reportStocks = [{"name": "台積電", "symbol": "2330.TW", "industry": "半導體"}, {"name": "世界先進", "symbol": "5347.TW", "industry": "半導體"}, {"name": "台勝科", "symbol": "3532.TW", "industry": "半導體"}, {"name": "南亞科", "symbol": "2408.TW", "industry": "記憶體"}, {"name": "旺宏", "symbol": "2337.TW", "industry": "記憶體"}, {"name": "兆赫", "symbol": "2485.TW", "industry": "電子零組件"}];
+
+let pendingStocks = JSON.parse(localStorage.getItem('tw_pending_stocks') || '[]');
+
+function renderStocks(configStocks){
+  const list = document.getElementById('stocks-list');
+  list.innerHTML = '';
+
+  // 已分析的股票（本報告）
+  configStocks.forEach(function(s){
+    const tag = document.createElement('span');
+    tag.className = 'stock-tag';
+    tag.innerHTML = '<b>'+s.name+'</b>&nbsp;<span style="color:#888">'+s.symbol+'</span>'
+      +'<span class="remove" title="移除" onclick="removeStock(''+s.symbol+'')">×</span>';
+    list.appendChild(tag);
+  });
+
+  // 待加入（localStorage 中但尚未重新分析）
+  pendingStocks.forEach(function(s){
+    const tag = document.createElement('span');
+    tag.className = 'stock-tag new-tag';
+    tag.innerHTML = '＋<b>'+s.name+'</b>&nbsp;<span>'+s.symbol+'</span>'
+      +'<span class="remove" title="取消" onclick="removePending(''+s.symbol+'')">×</span>';
+    list.appendChild(tag);
+  });
+
+  const btn = document.getElementById('btn-run');
+  btn.disabled = false;
+}
+
+function showMsg(text, type){
+  const el = document.getElementById('manager-msg');
+  el.textContent = text;
+  el.className = type;
+  setTimeout(function(){ el.className=''; el.style.display='none'; }, 4000);
+}
+
+function addStock(){
+  const sym  = document.getElementById('inp-symbol').value.trim().toUpperCase();
+  const name = document.getElementById('inp-name').value.trim();
+  const ind  = document.getElementById('inp-industry').value;
+  if(!sym || !name){ showMsg('請填入代號與公司名稱','err'); return; }
+
+  const symbol = sym.includes('.') ? sym : sym+'.TW';
+  const all = reportStocks.map(function(s){return s.symbol;})
+    .concat(pendingStocks.map(function(s){return s.symbol;}));
+  if(all.indexOf(symbol)!==-1){ showMsg(name+' 已在清單中','err'); return; }
+
+  pendingStocks.push({name:name,symbol:symbol,industry:ind});
+  localStorage.setItem('tw_pending_stocks', JSON.stringify(pendingStocks));
+  document.getElementById('inp-symbol').value='';
+  document.getElementById('inp-name').value='';
+  renderStocks(reportStocks);
+  showMsg('已加入 '+name+'，請點「重新分析」更新報告','ok');
+}
+
+function removePending(symbol){
+  pendingStocks = pendingStocks.filter(function(s){return s.symbol!==symbol;});
+  localStorage.setItem('tw_pending_stocks', JSON.stringify(pendingStocks));
+  renderStocks(reportStocks);
+}
+
+function removeStock(symbol){
+  fetch(API+'/api/remove-stock', {
+    method:'POST',
+    headers:{'Content-Type':'application/json'},
+    body: JSON.stringify({symbol:symbol})
+  }).then(function(r){ return r.json(); })
+    .then(function(d){
+      if(d.ok){ showMsg('已移除，點「重新分析」套用','info'); }
+      else     { showMsg('移除失敗: '+d.error,'err'); }
+    }).catch(function(){
+      showMsg('伺服器未啟動，請執行 uv run server.py','err');
+    });
+}
+
+function runAnalysis(){
+  const btn = document.getElementById('btn-run');
+  btn.disabled = true;
+  btn.textContent = '分析中...';
+  showMsg('正在重新分析，請稍候（約20秒）...','info');
+
+  // 先把 pending stocks 推給伺服器
+  const addPromises = pendingStocks.map(function(s){
+    return fetch(API+'/api/add-stock',{
+      method:'POST',
+      headers:{'Content-Type':'application/json'},
+      body: JSON.stringify(s)
+    }).then(function(r){return r.json();});
+  });
+
+  Promise.all(addPromises).then(function(){
+    pendingStocks=[];
+    localStorage.removeItem('tw_pending_stocks');
+    return fetch(API+'/api/run',{method:'POST'});
+  }).then(function(r){return r.json();})
+    .then(function(d){
+      if(d.ok){
+        showMsg('分析完成！3秒後重新整理頁面...','ok');
+        setTimeout(function(){ window.location.reload(); },3000);
+      } else {
+        btn.disabled=false; btn.textContent='🔄 重新分析';
+        showMsg('執行失敗: '+d.error,'err');
+      }
+    }).catch(function(){
+      btn.disabled=false; btn.textContent='🔄 重新分析';
+      showMsg('⚠️ 請先執行 uv run server.py 啟動本機伺服器','err');
+    });
+}
+
+// 初始化
+(function(){
+  if(typeof reportStocks !== 'undefined') renderStocks(reportStocks);
+})();
+</script>
+</body>
+</html>
