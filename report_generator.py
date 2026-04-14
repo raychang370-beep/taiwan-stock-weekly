@@ -59,9 +59,7 @@ HTML_TEMPLATE = """<!DOCTYPE html>
 })();
 </script>
 <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
-<script src="https://cdn.jsdelivr.net/npm/luxon@3.4.4/build/global/luxon.min.js"></script>
-<script src="https://cdn.jsdelivr.net/npm/chartjs-adapter-luxon@1.3.1/dist/chartjs-adapter-luxon.umd.min.js"></script>
-<script src="https://cdn.jsdelivr.net/npm/chartjs-chart-financial@0.1.1/dist/chartjs-chart-financial.min.js"></script>
+<script src="https://unpkg.com/lightweight-charts@4.1.3/dist/lightweight-charts.standalone.production.js"></script>
 <style>
   :root {
     --buy-strong:#00b300; --buy:#33cc33; --wait:#e6a800;
@@ -368,7 +366,7 @@ HTML_TEMPLATE = """<!DOCTYPE html>
       {% set cid = loop.index|string + '_' + cat|replace('必','must')|replace('買','buy')|replace('入','in')|replace('賣','sell')|replace('出','out')|replace('等待','wait') %}
       <div class="chart-wrap">
         <div class="chart-label">K 線圖（含 MA5/10/20/60/120/240）</div>
-        <div class="chart-candle"><canvas id="candle_{{ cid }}"></canvas></div>
+        <div class="chart-candle" id="candle_{{ cid }}"></div>
         <div class="chart-label">KD 指標（橙=K　藍=D　🟥超買 🟩超賣）</div>
         <div class="chart-kd"><canvas id="kd_{{ cid }}"></canvas></div>
       </div>
@@ -419,109 +417,71 @@ HTML_TEMPLATE = """<!DOCTYPE html>
 const chartData = {{ chart_data_json }};
 const GRID_LIGHT = {color:'rgba(0,0,0,.06)'};
 
-// 均線顏色（對應玩股網配色：MA5藍、MA10金、MA20粉、MA60綠、MA120紫、MA240橘）
-const MA_COLORS = {
-  ma5:  '#1a73e8', ma10: '#ff9900', ma20: '#ff69b4',
-  ma60: '#22a722', ma120:'#9333ea', ma240:'#f97316'
-};
-
-function maLine(label, data, color){
-  return {
-    type:'line', label:label, data:data,
-    borderColor:color, backgroundColor:'transparent',
-    borderWidth:1.4, pointRadius:0, tension:0.3,
-    parsing:false, yAxisID:'y'
-  };
-}
+// MA 顏色（玩股網配色）
+const MA_CFG = [
+  {key:'ma5',   color:'#1a73e8', width:1.2},
+  {key:'ma10',  color:'#ff9900', width:1.2},
+  {key:'ma20',  color:'#ff69b4', width:1.2},
+  {key:'ma60',  color:'#22a722', width:1.4},
+  {key:'ma120', color:'#9333ea', width:1.4},
+  {key:'ma240', color:'#f97316', width:1.4},
+];
 
 chartData.forEach(function(item){
   const d = item.data;
   if(!d || !d.dates || !d.dates.length) return;
 
-  const ts = d.dates.map(function(s){ return new Date(s).getTime(); });
-
-  // ── 日K 圖 + 均線（單一圖表） ────────────────────
-  const candleCanvas = document.getElementById('candle_' + item.cid);
-  if(candleCanvas){
-    const ohlc = ts.map(function(t,i){
-      return {x:t, o:d.open[i]||null, h:d.high[i]||null,
-              l:d.low[i]||null,   c:d.close[i]||null};
-    }).filter(function(v){ return v.o && v.c; });
-
-    // 均線資料（x 對齊 timestamp）
-    function maDataset(key, label, color){
-      if(!d[key] || !d[key].length) return null;
-      return maLine(label,
-        ts.map(function(t,i){
-          return d[key][i]!=null ? {x:t, y:d[key][i]} : {x:t, y:null};
-        }), color);
-    }
-
-    const datasets = [
-      {
-        type:'candlestick',
-        label:'日K',
-        data: ohlc,
-        color:{
-          up:'rgba(220,38,38,0.95)',
-          down:'rgba(34,197,94,0.95)',
-          unchanged:'rgba(150,150,150,0.8)'
-        },
-        borderColor:{
-          up:'rgb(220,38,38)',
-          down:'rgb(34,197,94)',
-          unchanged:'rgb(150,150,150)'
-        }
-      }
-    ];
-    ['ma5','ma10','ma20','ma60','ma120','ma240'].forEach(function(k){
-      const labels = {ma5:'MA5',ma10:'MA10',ma20:'MA20',
-                      ma60:'MA60',ma120:'MA120',ma240:'MA240'};
-      const ds = maDataset(k, labels[k], MA_COLORS[k]);
-      if(ds) datasets.push(ds);
+  // ── 日K 圖 + 均線（lightweight-charts） ──────────
+  const candleEl = document.getElementById('candle_' + item.cid);
+  if(candleEl && typeof LightweightCharts !== 'undefined'){
+    const chart = LightweightCharts.createChart(candleEl, {
+      autoSize: true,
+      layout:{
+        background:{type:'solid', color:'transparent'},
+        textColor:'#666',
+        fontSize: 10,
+      },
+      grid:{
+        vertLines:{color:'#f0f0f0'},
+        horzLines:{color:'#f0f0f0'},
+      },
+      rightPriceScale:{borderColor:'#e0e0e0', scaleMargins:{top:.1,bottom:.1}},
+      timeScale:{borderColor:'#e0e0e0', timeVisible:false, fixRightEdge:true, fixLeftEdge:true},
+      crosshair:{mode: LightweightCharts.CrosshairMode.Normal},
+      handleScroll: false,
+      handleScale:  false,
     });
 
-    new Chart(candleCanvas,{
-      data:{ datasets: datasets },
-      options:{
-        responsive:true, maintainAspectRatio:false,
-        plugins:{
-          legend:{
-            display:true, position:'top',
-            labels:{
-              font:{size:9}, boxWidth:20, padding:6,
-              filter:function(item){ return item.text!=='日K'; }
-            }
-          },
-          tooltip:{
-            mode:'index', intersect:false,
-            callbacks:{
-              label:function(ctx){
-                if(ctx.dataset.type==='candlestick'){
-                  const v=ctx.raw;
-                  return ['開:'+v.o,' 高:'+v.h,' 低:'+v.l,' 收:'+v.c];
-                }
-                return ctx.dataset.label+': '+(ctx.parsed.y||'').toFixed(2);
-              }
-            }
-          }
-        },
-        scales:{
-          x:{
-            type:'timeseries',
-            time:{unit:'day', displayFormats:{day:'M/d'}},
-            ticks:{maxTicksLimit:8, font:{size:8}},
-            grid:{display:false}
-          },
-          y:{
-            position:'right',
-            ticks:{maxTicksLimit:6, font:{size:8}},
-            grid:GRID_LIGHT
-          }
-        },
-        animation:{duration:200}
-      }
+    // K 棒（台灣：紅漲綠跌）
+    const candleSeries = chart.addCandlestickSeries({
+      upColor:       'rgb(220,38,38)',
+      downColor:     'rgb(34,197,94)',
+      borderUpColor: 'rgb(220,38,38)',
+      borderDownColor:'rgb(34,197,94)',
+      wickUpColor:   'rgb(220,38,38)',
+      wickDownColor: 'rgb(34,197,94)',
     });
+    const ohlcData = d.dates.map(function(date,i){
+      return {time:date, open:d.open[i], high:d.high[i],
+              low:d.low[i], close:d.close[i]};
+    }).filter(function(v){ return v.open && v.close; });
+    candleSeries.setData(ohlcData);
+
+    // 均線
+    MA_CFG.forEach(function(cfg){
+      if(!d[cfg.key] || !d[cfg.key].length) return;
+      const lineSeries = chart.addLineSeries({
+        color: cfg.color, lineWidth: cfg.width,
+        priceLineVisible: false, lastValueVisible: false,
+        crosshairMarkerVisible: false,
+      });
+      const maData = d.dates.map(function(date,i){
+        return d[cfg.key][i] != null ? {time:date, value:d[cfg.key][i]} : null;
+      }).filter(Boolean);
+      lineSeries.setData(maData);
+    });
+
+    chart.timeScale().fitContent();
   }
 
   // ── KD 線圖（保留小圖，緊接在下方） ──────────────
