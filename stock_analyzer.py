@@ -171,20 +171,51 @@ def detect_pattern(df: pd.DataFrame) -> dict:
         "ma20": round(float(ma20), 2),
     }
 
-def get_kd_history(df: pd.DataFrame, days: int = 30) -> dict:
-    """取得近期 KD 歷史資料（用於圖表繪製）"""
+def get_kd_history(df: pd.DataFrame, display_days: int = 60) -> dict:
+    """
+    取得近期 K 棒 + KD + 各期均線資料（用於圖表繪製）
+    - display_days: 顯示最近幾根 K 棒（預設60）
+    - 均線計算需要更長歷史，但只顯示近 display_days 筆
+    """
     if df.empty:
-        return {"dates": [], "k": [], "d": [], "close": []}
-    recent = df.tail(days)
+        return {"dates": [], "k": [], "d": [], "close": [],
+                "high": [], "low": [], "open": [], "volume": [],
+                "ma5": [], "ma10": [], "ma20": [],
+                "ma60": [], "ma120": [], "ma240": []}
+
+    def _ma(series, n):
+        ma = series.rolling(window=n).mean()
+        return [round(float(v), 2) if not pd.isna(v) else None for v in ma]
+
+    close = df['close']
+    recent = df.tail(display_days)
+
+    # 計算均線（用全部資料，再取尾段）
+    ma5   = _ma(close, 5)[-display_days:]
+    ma10  = _ma(close, 10)[-display_days:]
+    ma20  = _ma(close, 20)[-display_days:]
+    ma60  = _ma(close, 60)[-display_days:]
+    ma120 = _ma(close, 120)[-display_days:]
+    ma240 = _ma(close, 240)[-display_days:]
+
+    def _safe(series, rnd=2):
+        return [round(float(v), rnd) if not pd.isna(v) else None for v in series]
+
     return {
         "dates":  [str(d.date()) for d in recent.index],
-        "k":      [round(float(v), 1) if not pd.isna(v) else None for v in recent['K']],
-        "d":      [round(float(v), 1) if not pd.isna(v) else None for v in recent['D']],
-        "close":  [round(float(v), 2) if not pd.isna(v) else None for v in recent['close']],
-        "high":   [round(float(v), 2) if not pd.isna(v) else None for v in recent['high']],
-        "low":    [round(float(v), 2) if not pd.isna(v) else None for v in recent['low']],
-        "open":   [round(float(v), 2) if not pd.isna(v) else None for v in recent['open']],
+        "k":      _safe(recent['K'], 1),
+        "d":      _safe(recent['D'], 1),
+        "close":  _safe(recent['close']),
+        "high":   _safe(recent['high']),
+        "low":    _safe(recent['low']),
+        "open":   _safe(recent['open']),
         "volume": [int(v) if not pd.isna(v) else None for v in recent['volume']],
+        "ma5":    ma5,
+        "ma10":   ma10,
+        "ma20":   ma20,
+        "ma60":   ma60,
+        "ma120":  ma120,
+        "ma240":  ma240,
     }
 
 def analyze_company(company: dict, config: dict) -> dict:
@@ -209,7 +240,7 @@ def analyze_company(company: dict, config: dict) -> dict:
                       k_period=config.get('kd_period', 9),
                       d_period=config.get('kd_signal_period', 3))
     analysis = detect_pattern(df)
-    kd_hist  = get_kd_history(df)
+    kd_hist  = get_kd_history(df, display_days=config.get('chart_display_days', 60))
 
     # 計算漲跌幅
     close_vals = df['close'].dropna().values

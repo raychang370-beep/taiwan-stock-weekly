@@ -133,9 +133,10 @@ HTML_TEMPLATE = """<!DOCTYPE html>
   .kd-item span{font-weight:700;}
   .cross-tag{font-size:.73rem;padding:.12rem .5rem;border-radius:10px;background:#fff3cd;color:#856404;font-weight:600;margin-left:.3rem;}
   .chart-wrap{margin-top:.8rem;}
-  .chart-candle{position:relative;height:160px;margin-bottom:4px;}
-  .chart-kd{position:relative;height:90px;}
-  .chart-label{font-size:.7rem;color:var(--sub);margin:.3rem 0 .1rem;font-weight:600;letter-spacing:.03em;}
+  .chart-candle{position:relative;height:200px;margin-bottom:4px;}
+  .chart-kd{position:relative;height:80px;}
+  .chart-label{font-size:.68rem;color:var(--sub);margin:.35rem 0 .1rem;
+               font-weight:700;letter-spacing:.04em;text-transform:uppercase;}
   /* 手機優化 */
   @media(max-width:600px){
     .cards{grid-template-columns:1fr;}
@@ -143,8 +144,8 @@ HTML_TEMPLATE = """<!DOCTYPE html>
     .manager-row{flex-direction:column;gap:.5rem;}
     .manager-row input,.manager-row select{width:100%!important;}
     header h1{font-size:1.4rem;}
-    .chart-candle{height:130px;}
-    .chart-kd{height:80px;}
+    .chart-candle{height:160px;}
+    .chart-kd{height:70px;}
   }
   .ma-row{display:flex;gap:.7rem;margin:.3rem 0;font-size:.76rem;color:var(--sub);}
   .confidence-bar{background:#e0e0e0;border-radius:4px;height:5px;margin:.35rem 0;overflow:hidden;}
@@ -366,9 +367,9 @@ HTML_TEMPLATE = """<!DOCTYPE html>
       {% if s.kd_history and s.kd_history.dates %}
       {% set cid = loop.index|string + '_' + cat|replace('必','must')|replace('買','buy')|replace('入','in')|replace('賣','sell')|replace('出','out')|replace('等待','wait') %}
       <div class="chart-wrap">
-        <div class="chart-label">📊 日線圖</div>
+        <div class="chart-label">K 線圖（含 MA5/10/20/60/120/240）</div>
         <div class="chart-candle"><canvas id="candle_{{ cid }}"></canvas></div>
-        <div class="chart-label">📈 KD 線（K=橙 D=藍）</div>
+        <div class="chart-label">KD 指標（橙=K　藍=D　🟥超買 🟩超賣）</div>
         <div class="chart-kd"><canvas id="kd_{{ cid }}"></canvas></div>
       </div>
       {% endif %}
@@ -416,81 +417,141 @@ HTML_TEMPLATE = """<!DOCTYPE html>
 <script>
 // ── 圖表 ────────────────────────────────────────
 const chartData = {{ chart_data_json }};
+const GRID_LIGHT = {color:'rgba(0,0,0,.06)'};
 
-const TICK_OPTS = {maxTicksLimit:5, font:{size:9}};
-const GRID_LIGHT = {color:'rgba(0,0,0,.05)'};
+// 均線顏色（對應玩股網配色：MA5藍、MA10金、MA20粉、MA60綠、MA120紫、MA240橘）
+const MA_COLORS = {
+  ma5:  '#1a73e8', ma10: '#ff9900', ma20: '#ff69b4',
+  ma60: '#22a722', ma120:'#9333ea', ma240:'#f97316'
+};
+
+function maLine(label, data, color){
+  return {
+    type:'line', label:label, data:data,
+    borderColor:color, backgroundColor:'transparent',
+    borderWidth:1.4, pointRadius:0, tension:0.3,
+    parsing:false, yAxisID:'y'
+  };
+}
 
 chartData.forEach(function(item){
   const d = item.data;
   if(!d || !d.dates || !d.dates.length) return;
 
-  // 把日期字串轉為 timestamp（毫秒）
   const ts = d.dates.map(function(s){ return new Date(s).getTime(); });
 
-  // ── 1. 日線圖（K棒 / Candlestick） ──────────────
+  // ── 日K 圖 + 均線（單一圖表） ────────────────────
   const candleCanvas = document.getElementById('candle_' + item.cid);
   if(candleCanvas){
     const ohlc = ts.map(function(t,i){
-      return {x:t, o:d.open[i], h:d.high[i], l:d.low[i], c:d.close[i]};
-    }).filter(function(v){ return v.o&&v.h&&v.l&&v.c; });
+      return {x:t, o:d.open[i]||null, h:d.high[i]||null,
+              l:d.low[i]||null,   c:d.close[i]||null};
+    }).filter(function(v){ return v.o && v.c; });
+
+    // 均線資料（x 對齊 timestamp）
+    function maDataset(key, label, color){
+      if(!d[key] || !d[key].length) return null;
+      return maLine(label,
+        ts.map(function(t,i){
+          return d[key][i]!=null ? {x:t, y:d[key][i]} : {x:t, y:null};
+        }), color);
+    }
+
+    const datasets = [
+      {
+        type:'candlestick',
+        label:'日K',
+        data: ohlc,
+        color:{
+          up:'rgba(220,38,38,0.95)',
+          down:'rgba(34,197,94,0.95)',
+          unchanged:'rgba(150,150,150,0.8)'
+        },
+        borderColor:{
+          up:'rgb(220,38,38)',
+          down:'rgb(34,197,94)',
+          unchanged:'rgb(150,150,150)'
+        }
+      }
+    ];
+    ['ma5','ma10','ma20','ma60','ma120','ma240'].forEach(function(k){
+      const labels = {ma5:'MA5',ma10:'MA10',ma20:'MA20',
+                      ma60:'MA60',ma120:'MA120',ma240:'MA240'};
+      const ds = maDataset(k, labels[k], MA_COLORS[k]);
+      if(ds) datasets.push(ds);
+    });
 
     new Chart(candleCanvas,{
-      type:'candlestick',
-      data:{
-        datasets:[{
-          label:'日K',
-          data: ohlc,
-          color:{
-            up:   'rgba(220,38,38,0.9)',   // 紅K（台灣漲為紅）
-            down: 'rgba(34,197,94,0.9)',    // 綠K（台灣跌為綠）
-            unchanged:'rgba(150,150,150,0.8)'
-          },
-          borderColor:{
-            up:   'rgba(220,38,38,1)',
-            down: 'rgba(34,197,94,1)',
-            unchanged:'rgba(150,150,150,1)'
-          }
-        }]
-      },
+      data:{ datasets: datasets },
       options:{
         responsive:true, maintainAspectRatio:false,
-        plugins:{legend:{display:false}, tooltip:{
-          callbacks:{
-            label:function(ctx){
-              const v=ctx.raw;
-              return ['開:'+v.o,'高:'+v.h,'低:'+v.l,'收:'+v.c];
+        plugins:{
+          legend:{
+            display:true, position:'top',
+            labels:{
+              font:{size:9}, boxWidth:20, padding:6,
+              filter:function(item){ return item.text!=='日K'; }
+            }
+          },
+          tooltip:{
+            mode:'index', intersect:false,
+            callbacks:{
+              label:function(ctx){
+                if(ctx.dataset.type==='candlestick'){
+                  const v=ctx.raw;
+                  return ['開:'+v.o,' 高:'+v.h,' 低:'+v.l,' 收:'+v.c];
+                }
+                return ctx.dataset.label+': '+(ctx.parsed.y||'').toFixed(2);
+              }
             }
           }
-        }},
+        },
         scales:{
           x:{
             type:'timeseries',
             time:{unit:'day', displayFormats:{day:'M/d'}},
-            ticks:{maxTicksLimit:6, font:{size:8}},
+            ticks:{maxTicksLimit:8, font:{size:8}},
             grid:{display:false}
           },
           y:{
             position:'right',
-            ticks:{maxTicksLimit:5, font:{size:8}},
+            ticks:{maxTicksLimit:6, font:{size:8}},
             grid:GRID_LIGHT
           }
         },
-        animation:{duration:300}
+        animation:{duration:200}
       }
     });
   }
 
-  // ── 2. KD 線圖 ──────────────────────────────────
+  // ── KD 線圖（保留小圖，緊接在下方） ──────────────
   const kdCanvas = document.getElementById('kd_' + item.cid);
   if(kdCanvas){
+    // 超買/超賣背景區
+    const kdPlugin = {
+      id:'kdZone',
+      beforeDraw:function(chart){
+        const ctx2=chart.ctx, yAxis=chart.scales.y, xAxis=chart.scales.x;
+        if(!yAxis||!xAxis) return;
+        // 超買區 80-100
+        ctx2.fillStyle='rgba(220,38,38,.07)';
+        ctx2.fillRect(xAxis.left, yAxis.getPixelForValue(100),
+                      xAxis.width, yAxis.getPixelForValue(80)-yAxis.getPixelForValue(100));
+        // 超賣區 0-20
+        ctx2.fillStyle='rgba(34,197,94,.07)';
+        ctx2.fillRect(xAxis.left, yAxis.getPixelForValue(20),
+                      xAxis.width, yAxis.getPixelForValue(0)-yAxis.getPixelForValue(20));
+      }
+    };
     new Chart(kdCanvas,{
       type:'line',
+      plugins:[kdPlugin],
       data:{
-        labels: ts,
+        labels:ts,
         datasets:[
           {label:'K',data:d.k,borderColor:'#e67e00',backgroundColor:'transparent',
            borderWidth:1.8,pointRadius:0,tension:.3},
-          {label:'D',data:d.d,borderColor:'#0066cc',backgroundColor:'transparent',
+          {label:'D',data:d.d,borderColor:'#1a73e8',backgroundColor:'transparent',
            borderWidth:1.8,pointRadius:0,tension:.3}
         ]
       },
@@ -498,24 +559,17 @@ chartData.forEach(function(item){
         responsive:true, maintainAspectRatio:false,
         plugins:{
           legend:{display:true,position:'top',
-            labels:{font:{size:9},boxWidth:12,padding:6}},
-          tooltip:{mode:'index',intersect:false},
-          annotation:{  /* 超買/超賣參考線（若有 plugin） */ }
+            labels:{font:{size:9},boxWidth:14,padding:6}},
+          tooltip:{mode:'index',intersect:false}
         },
         scales:{
-          x:{
-            type:'timeseries',
-            time:{unit:'day', displayFormats:{day:'M/d'}},
-            ticks:{maxTicksLimit:6, font:{size:8}},
-            grid:{display:false}
-          },
-          y:{
-            min:0, max:100,
-            ticks:{stepSize:20, font:{size:8}},
-            grid:GRID_LIGHT
-          }
+          x:{type:'timeseries',time:{unit:'day',displayFormats:{day:'M/d'}},
+             ticks:{maxTicksLimit:6,font:{size:8}},grid:{display:false}},
+          y:{min:0,max:100,ticks:{stepSize:20,font:{size:8},
+             callback:function(v){return v===20?'超賣':v===80?'超買':v;}},
+             grid:GRID_LIGHT}
         },
-        animation:{duration:300}
+        animation:{duration:200}
       }
     });
   }

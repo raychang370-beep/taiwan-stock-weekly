@@ -10,7 +10,8 @@
   "industries": ["半導體", "記憶體", "電子零組件"],
   "kd_period": 9,
   "kd_signal_period": 3,
-  "lookback_days": 60,
+  "lookback_days": 420,
+  "chart_display_days": 60,
   "news_sources": [
     {"name": "鉅亨網", "url": "https://news.cnyes.com/rss/cat/tw_stock"},
     {"name": "MoneyDJ", "url": "https://www.moneydj.com/rss/news.aspx"},
