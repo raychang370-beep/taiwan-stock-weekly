@@ -59,6 +59,9 @@ HTML_TEMPLATE = """<!DOCTYPE html>
 })();
 </script>
 <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/luxon@3.4.4/build/global/luxon.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/chartjs-adapter-luxon@1.3.1/dist/chartjs-adapter-luxon.umd.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/chartjs-chart-financial@0.1.1/dist/chartjs-chart-financial.min.js"></script>
 <style>
   :root {
     --buy-strong:#00b300; --buy:#33cc33; --wait:#e6a800;
@@ -129,8 +132,20 @@ HTML_TEMPLATE = """<!DOCTYPE html>
   .kd-item{background:#f4f4f4;padding:.2rem .6rem;border-radius:6px;}
   .kd-item span{font-weight:700;}
   .cross-tag{font-size:.73rem;padding:.12rem .5rem;border-radius:10px;background:#fff3cd;color:#856404;font-weight:600;margin-left:.3rem;}
-  .chart-wrap{margin-top:.75rem;height:130px;position:relative;}
-  .chart-wrap canvas{max-height:130px;}
+  .chart-wrap{margin-top:.8rem;}
+  .chart-candle{position:relative;height:160px;margin-bottom:4px;}
+  .chart-kd{position:relative;height:90px;}
+  .chart-label{font-size:.7rem;color:var(--sub);margin:.3rem 0 .1rem;font-weight:600;letter-spacing:.03em;}
+  /* 手機優化 */
+  @media(max-width:600px){
+    .cards{grid-template-columns:1fr;}
+    .guide-grid{grid-template-columns:1fr 1fr;}
+    .manager-row{flex-direction:column;gap:.5rem;}
+    .manager-row input,.manager-row select{width:100%!important;}
+    header h1{font-size:1.4rem;}
+    .chart-candle{height:130px;}
+    .chart-kd{height:80px;}
+  }
   .ma-row{display:flex;gap:.7rem;margin:.3rem 0;font-size:.76rem;color:var(--sub);}
   .confidence-bar{background:#e0e0e0;border-radius:4px;height:5px;margin:.35rem 0;overflow:hidden;}
   .confidence-fill{height:100%;border-radius:4px;}
@@ -349,8 +364,12 @@ HTML_TEMPLATE = """<!DOCTYPE html>
       </div>
 
       {% if s.kd_history and s.kd_history.dates %}
+      {% set cid = loop.index|string + '_' + cat|replace('必','must')|replace('買','buy')|replace('入','in')|replace('賣','sell')|replace('出','out')|replace('等待','wait') %}
       <div class="chart-wrap">
-        <canvas id="chart_{{ loop.index }}_{{ cat|replace('必','must')|replace('買','buy')|replace('入','in')|replace('賣','sell')|replace('出','out')|replace('等待','wait') }}"></canvas>
+        <div class="chart-label">📊 日線圖</div>
+        <div class="chart-candle"><canvas id="candle_{{ cid }}"></canvas></div>
+        <div class="chart-label">📈 KD 線（K=橙 D=藍）</div>
+        <div class="chart-kd"><canvas id="kd_{{ cid }}"></canvas></div>
       </div>
       {% endif %}
 
@@ -397,33 +416,109 @@ HTML_TEMPLATE = """<!DOCTYPE html>
 <script>
 // ── 圖表 ────────────────────────────────────────
 const chartData = {{ chart_data_json }};
+
+const TICK_OPTS = {maxTicksLimit:5, font:{size:9}};
+const GRID_LIGHT = {color:'rgba(0,0,0,.05)'};
+
 chartData.forEach(function(item){
-  const canvas = document.getElementById(item.id);
-  if(!canvas || !item.data || !item.data.dates || !item.data.dates.length) return;
-  new Chart(canvas,{
-    type:'line',
-    data:{
-      labels: item.data.dates,
-      datasets:[
-        {label:'K值',data:item.data.k,borderColor:'#e67e00',backgroundColor:'transparent',
-         borderWidth:1.5,pointRadius:0,tension:.3},
-        {label:'D值',data:item.data.d,borderColor:'#0066cc',backgroundColor:'transparent',
-         borderWidth:1.5,pointRadius:0,tension:.3}
-      ]
-    },
-    options:{
-      responsive:true,maintainAspectRatio:false,
-      plugins:{
-        legend:{display:true,position:'top',labels:{font:{size:10},boxWidth:14}},
-        tooltip:{mode:'index',intersect:false}
+  const d = item.data;
+  if(!d || !d.dates || !d.dates.length) return;
+
+  // 把日期字串轉為 timestamp（毫秒）
+  const ts = d.dates.map(function(s){ return new Date(s).getTime(); });
+
+  // ── 1. 日線圖（K棒 / Candlestick） ──────────────
+  const candleCanvas = document.getElementById('candle_' + item.cid);
+  if(candleCanvas){
+    const ohlc = ts.map(function(t,i){
+      return {x:t, o:d.open[i], h:d.high[i], l:d.low[i], c:d.close[i]};
+    }).filter(function(v){ return v.o&&v.h&&v.l&&v.c; });
+
+    new Chart(candleCanvas,{
+      type:'candlestick',
+      data:{
+        datasets:[{
+          label:'日K',
+          data: ohlc,
+          color:{
+            up:   'rgba(220,38,38,0.9)',   // 紅K（台灣漲為紅）
+            down: 'rgba(34,197,94,0.9)',    // 綠K（台灣跌為綠）
+            unchanged:'rgba(150,150,150,0.8)'
+          },
+          borderColor:{
+            up:   'rgba(220,38,38,1)',
+            down: 'rgba(34,197,94,1)',
+            unchanged:'rgba(150,150,150,1)'
+          }
+        }]
       },
-      scales:{
-        x:{ticks:{maxTicksLimit:6,font:{size:9}},grid:{display:false}},
-        y:{min:0,max:100,ticks:{stepSize:20,font:{size:9}},grid:{color:'rgba(0,0,0,.05)'}}
+      options:{
+        responsive:true, maintainAspectRatio:false,
+        plugins:{legend:{display:false}, tooltip:{
+          callbacks:{
+            label:function(ctx){
+              const v=ctx.raw;
+              return ['開:'+v.o,'高:'+v.h,'低:'+v.l,'收:'+v.c];
+            }
+          }
+        }},
+        scales:{
+          x:{
+            type:'timeseries',
+            time:{unit:'day', displayFormats:{day:'M/d'}},
+            ticks:{maxTicksLimit:6, font:{size:8}},
+            grid:{display:false}
+          },
+          y:{
+            position:'right',
+            ticks:{maxTicksLimit:5, font:{size:8}},
+            grid:GRID_LIGHT
+          }
+        },
+        animation:{duration:300}
+      }
+    });
+  }
+
+  // ── 2. KD 線圖 ──────────────────────────────────
+  const kdCanvas = document.getElementById('kd_' + item.cid);
+  if(kdCanvas){
+    new Chart(kdCanvas,{
+      type:'line',
+      data:{
+        labels: ts,
+        datasets:[
+          {label:'K',data:d.k,borderColor:'#e67e00',backgroundColor:'transparent',
+           borderWidth:1.8,pointRadius:0,tension:.3},
+          {label:'D',data:d.d,borderColor:'#0066cc',backgroundColor:'transparent',
+           borderWidth:1.8,pointRadius:0,tension:.3}
+        ]
       },
-      animation:{duration:400}
-    }
-  });
+      options:{
+        responsive:true, maintainAspectRatio:false,
+        plugins:{
+          legend:{display:true,position:'top',
+            labels:{font:{size:9},boxWidth:12,padding:6}},
+          tooltip:{mode:'index',intersect:false},
+          annotation:{  /* 超買/超賣參考線（若有 plugin） */ }
+        },
+        scales:{
+          x:{
+            type:'timeseries',
+            time:{unit:'day', displayFormats:{day:'M/d'}},
+            ticks:{maxTicksLimit:6, font:{size:8}},
+            grid:{display:false}
+          },
+          y:{
+            min:0, max:100,
+            ticks:{stepSize:20, font:{size:8}},
+            grid:GRID_LIGHT
+          }
+        },
+        animation:{duration:300}
+      }
+    });
+  }
 });
 
 // ── 自選股管理 ────────────────────────────────────
@@ -582,9 +677,12 @@ def generate_report(results: list, news: dict, config: dict, password: str = "")
         cat_idx[cat] = cat_idx.get(cat, 0) + 1
         slug = (cat.replace('必','must').replace('買','buy').replace('入','in')
                    .replace('賣','sell').replace('出','out').replace('等待','wait'))
-        canvas_id = f"chart_{cat_idx[cat]}_{slug}"
-        chart_data.append({"id": canvas_id, "data": s.get('kd_history', {}),
-                           "color": CATEGORY_CONFIG.get(cat, {}).get('color', '#888')})
+        cid = f"{cat_idx[cat]}_{slug}"
+        chart_data.append({
+            "cid":   cid,
+            "data":  s.get('kd_history', {}),
+            "color": CATEGORY_CONFIG.get(cat, {}).get('color', '#888'),
+        })
 
     # 目前設定的股票（給 JS 用）
     current_stocks = [{"name": c["name"], "symbol": c["symbol"], "industry": c["industry"]}
