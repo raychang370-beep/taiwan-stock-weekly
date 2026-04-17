@@ -46,8 +46,8 @@ def main():
     # ── Step 2: Git commit ──────────────────────
     step("2/3  Git commit 週報")
 
-    # 確保 output 已加入追蹤
-    run("git add output/index.html")
+    # 確保 docs 已加入追蹤
+    run("git add docs/index.html")
 
     # 檢查是否有變更
     status = run("git status --porcelain", check=False)

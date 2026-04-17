@@ -311,10 +311,9 @@ class Handler(BaseHTTPRequestHandler):
         elif path == '/api/run':
             try:
                 print("  [*] 開始重新分析...")
-                # 同時觸發 deploy（git push）
+                # 呼叫 deploy.py（內部已包含 main.py + git push）
                 script = (
                     "import sys; sys.stdout.reconfigure(encoding='utf-8'); "
-                    "exec(open('main.py', encoding='utf-8').read()); "
                     "exec(open('deploy.py', encoding='utf-8').read())"
                 )
                 result = subprocess.run(
