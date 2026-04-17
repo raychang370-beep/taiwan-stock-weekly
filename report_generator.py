@@ -547,71 +547,100 @@ function renderStocks(configStocks){
   const list = document.getElementById('stocks-list');
   list.innerHTML = '';
 
-  // 已分析的股票（本報告）
+  if(!configStocks || configStocks.length === 0){
+    list.innerHTML = '<span style="color:#999;font-size:.82rem;">尚無自選股</span>';
+  }
+
+  // 已分析的股票（本報告）— 藍色標籤
   configStocks.forEach(function(s){
     const tag = document.createElement('span');
     tag.className = 'stock-tag';
-    tag.innerHTML = '<b>'+s.name+'</b>&nbsp;<span style="color:#888">'+s.symbol+'</span>'
-      +'<span class="remove" title="移除" onclick="removeStock(\''+s.symbol+'\')">×</span>';
+    tag.title = '已在分析清單中';
+    tag.innerHTML = '<b>'+s.name+'</b>&nbsp;<span style="color:#888;font-size:.75rem;">'+s.symbol+'</span>'
+      +'<span class="remove" title="從清單移除" onclick="removeStock(\''+s.symbol+'\',\''+s.name+'\')">×</span>';
     list.appendChild(tag);
   });
 
-  // 待加入（localStorage 中但尚未重新分析）
+  // 待加入（localStorage）— 綠色標籤
   pendingStocks.forEach(function(s){
     const tag = document.createElement('span');
     tag.className = 'stock-tag new-tag';
-    tag.innerHTML = '＋<b>'+s.name+'</b>&nbsp;<span>'+s.symbol+'</span>'
-      +'<span class="remove" title="取消" onclick="removePending(\''+s.symbol+'\')">×</span>';
+    tag.title = '待加入（點重新分析後生效）';
+    tag.innerHTML = '＋&nbsp;<b>'+s.name+'</b>&nbsp;<span style="font-size:.75rem;">'+s.symbol+'</span>'
+      +'<span class="remove" title="取消加入" onclick="removePending(\''+s.symbol+'\')">×</span>';
     list.appendChild(tag);
   });
-
-  const btn = document.getElementById('btn-run');
-  btn.disabled = false;
 }
 
+var _msgTimer = null;
 function showMsg(text, type){
   const el = document.getElementById('manager-msg');
+  // 清除舊 timer 和 inline style（修正多次呼叫時的 display 衝突）
+  if(_msgTimer){ clearTimeout(_msgTimer); _msgTimer=null; }
+  el.removeAttribute('style');   // 清除 inline style
   el.textContent = text;
-  el.className = type;
-  setTimeout(function(){ el.className=''; el.style.display='none'; }, 4000);
+  el.className = type;           // CSS class 控制顯示（.ok/.err/.info 均有 display:block）
+  _msgTimer = setTimeout(function(){
+    el.className = '';           // 清除 class → 回到 display:none（由 CSS 控制）
+  }, 5000);
 }
 
 function addStock(){
-  const sym  = document.getElementById('inp-symbol').value.trim().toUpperCase();
-  const name = document.getElementById('inp-name').value.trim();
-  const ind  = document.getElementById('inp-industry').value;
-  if(!sym || !name){ showMsg('請填入代號與公司名稱','err'); return; }
+  const symRaw = document.getElementById('inp-symbol').value.trim().toUpperCase();
+  const name   = document.getElementById('inp-name').value.trim();
+  const ind    = document.getElementById('inp-industry').value;
 
-  const symbol = sym.includes('.') ? sym : sym+'.TW';
-  const all = reportStocks.map(function(s){return s.symbol;})
-    .concat(pendingStocks.map(function(s){return s.symbol;}));
-  if(all.indexOf(symbol)!==-1){ showMsg(name+' 已在清單中','err'); return; }
+  // 驗證輸入
+  if(!symRaw){  showMsg('⚠️ 請輸入股票代號（如 2330）','err'); return; }
+  if(!name){    showMsg('⚠️ 請輸入公司名稱','err'); return; }
 
-  pendingStocks.push({name:name,symbol:symbol,industry:ind});
+  // 補 .TW 後綴
+  const symbol = symRaw.includes('.') ? symRaw : symRaw+'.TW';
+
+  // 已在報告清單中？
+  const inReport  = reportStocks.some(function(s){ return s.symbol===symbol; });
+  const inPending = pendingStocks.some(function(s){ return s.symbol===symbol; });
+
+  if(inReport){
+    showMsg('📋 '+name+'（'+symbol+'）已在目前分析清單中','info');
+    return;
+  }
+  if(inPending){
+    showMsg('⏳ '+name+'（'+symbol+'）已在待加入清單，請點「重新分析」','info');
+    return;
+  }
+
+  // 加入待加入清單
+  pendingStocks.push({name:name, symbol:symbol, industry:ind});
   localStorage.setItem('tw_pending_stocks', JSON.stringify(pendingStocks));
-  document.getElementById('inp-symbol').value='';
-  document.getElementById('inp-name').value='';
+
+  // 清空輸入
+  document.getElementById('inp-symbol').value = '';
+  document.getElementById('inp-name').value   = '';
+
   renderStocks(reportStocks);
-  showMsg('已加入 '+name+'，請點「重新分析」更新報告','ok');
+  showMsg('✅ 已加入 '+name+'！請點「🔄 重新分析」讓系統開始分析此股票','ok');
 }
 
 function removePending(symbol){
-  pendingStocks = pendingStocks.filter(function(s){return s.symbol!==symbol;});
+  pendingStocks = pendingStocks.filter(function(s){ return s.symbol!==symbol; });
   localStorage.setItem('tw_pending_stocks', JSON.stringify(pendingStocks));
   renderStocks(reportStocks);
+  showMsg('已取消加入 '+symbol,'info');
 }
 
-function removeStock(symbol){
+function removeStock(symbol, name){
+  if(!confirm('確定要從分析清單移除「'+name+'」嗎？\n（需點「重新分析」後生效）')){ return; }
   fetch(API+'/api/remove-stock', {
     method:'POST',
     headers:{'Content-Type':'application/json'},
     body: JSON.stringify({symbol:symbol})
   }).then(function(r){ return r.json(); })
     .then(function(d){
-      if(d.ok){ showMsg('已移除，點「重新分析」套用','info'); }
-      else     { showMsg('移除失敗: '+d.error,'err'); }
+      if(d.ok){ showMsg('✅ 已移除 '+name+'，請點「重新分析」套用','info'); }
+      else     { showMsg('❌ 移除失敗：'+d.error,'err'); }
     }).catch(function(){
-      showMsg('伺服器未啟動，請執行 uv run server.py','err');
+      showMsg('⚠️ 本機伺服器未啟動，請先執行：uv run server.py','err');
     });
 }
 
