@@ -203,15 +203,24 @@ HTML_TEMPLATE = """<!DOCTYPE html>
 
 <!-- ② 自選股管理面板 -->
 <div class="stock-manager">
-  <h2>⭐ 自選股管理</h2>
+  <h2>⭐ 自選股管理
+    <span id="server-status" style="font-size:.75rem;font-weight:400;margin-left:.8rem;padding:.15rem .6rem;border-radius:10px;background:#f4f4f4;color:#888;">⏳ 偵測伺服器中...</span>
+  </h2>
+  <!-- 伺服器未啟動時的提示 -->
+  <div id="server-hint" style="display:none;background:#fff8e1;border:1.5px solid #ffc107;border-radius:8px;padding:.65rem 1rem;margin-bottom:.8rem;font-size:.82rem;color:#7d5700;line-height:1.7;">
+    ⚠️ <b>需要啟動本機伺服器才能管理自選股。</b><br>
+    請在電腦上開啟「命令提示字元」或「終端機」，進入專案目錄後執行：<br>
+    <code style="background:#f5f5f5;border:1px solid #ddd;border-radius:4px;padding:.1rem .5rem;font-size:.88rem;user-select:all;">uv run server.py</code>
+    &nbsp;&nbsp;<button onclick="checkServer()" style="padding:.2rem .7rem;border:1px solid #ffc107;border-radius:6px;background:#fff;cursor:pointer;font-size:.8rem;">🔄 重新偵測</button>
+  </div>
   <div class="manager-row">
     <div>
-      <div style="font-size:.75rem;color:#888;margin-bottom:.3rem;">股票代號（如 2330）</div>
-      <input id="inp-symbol" type="text" placeholder="2330" maxlength="10" style="width:110px">
+      <div style="font-size:.75rem;color:#888;margin-bottom:.3rem;">股票代號（如 2317）</div>
+      <input id="inp-symbol" type="text" placeholder="2317" maxlength="10" style="width:110px">
     </div>
     <div>
       <div style="font-size:.75rem;color:#888;margin-bottom:.3rem;">公司名稱</div>
-      <input id="inp-name" type="text" placeholder="台積電" maxlength="20" style="width:120px">
+      <input id="inp-name" type="text" placeholder="鴻海" maxlength="20" style="width:120px">
     </div>
     <div>
       <div style="font-size:.75rem;color:#888;margin-bottom:.3rem;">產業</div>
@@ -225,7 +234,7 @@ HTML_TEMPLATE = """<!DOCTYPE html>
         <option>其他</option>
       </select>
     </div>
-    <button class="btn btn-add" onclick="addStock()">＋ 加入</button>
+    <button class="btn btn-add" id="btn-add" onclick="addStock()">＋ 加入並分析</button>
     <button class="btn btn-run" id="btn-run" onclick="runAnalysis()">🔄 重新分析</button>
   </div>
   <div class="stocks-list" id="stocks-list"></div>
@@ -537,151 +546,183 @@ chartData.forEach(function(item){
 
 // ── 自選股管理 ────────────────────────────────────
 const API = 'http://localhost:8899';
-
-// 目前報告中已有的股票（從伺服器 config 取得，預設顯示此份報告的）
 const reportStocks = {{ current_stocks_json }};
+let serverOnline = false;
 
-let pendingStocks = JSON.parse(localStorage.getItem('tw_pending_stocks') || '[]');
+// ── 伺服器狀態偵測 ───────────────────────────────
+function checkServer(){
+  const el = document.getElementById('server-status');
+  const hint = document.getElementById('server-hint');
+  el.textContent = '⏳ 偵測中...';
+  el.style.cssText = 'font-size:.75rem;font-weight:400;margin-left:.8rem;padding:.15rem .6rem;border-radius:10px;background:#f4f4f4;color:#888;';
+  const ctrl = new AbortController();
+  const tid = setTimeout(function(){ ctrl.abort(); }, 3000);
+  fetch(API+'/api/config', {signal: ctrl.signal})
+    .then(function(r){ clearTimeout(tid); return r.ok ? r.json() : Promise.reject(); })
+    .then(function(){
+      serverOnline = true;
+      el.textContent = '🟢 本機伺服器已啟動';
+      el.style.cssText = 'font-size:.75rem;font-weight:400;margin-left:.8rem;padding:.15rem .6rem;border-radius:10px;background:#e6ffe6;color:#006600;';
+      hint.style.display = 'none';
+    })
+    .catch(function(){
+      clearTimeout(tid);
+      serverOnline = false;
+      el.textContent = '🔴 伺服器未啟動';
+      el.style.cssText = 'font-size:.75rem;font-weight:400;margin-left:.8rem;padding:.15rem .6rem;border-radius:10px;background:#ffe6e6;color:#cc0000;';
+      hint.style.display = 'block';
+    });
+}
 
-function renderStocks(configStocks){
+// ── 顯示訊息（修正多次呼叫 display 衝突）────────
+var _msgTimer = null;
+function showMsg(text, type){
+  const el = document.getElementById('manager-msg');
+  if(_msgTimer){ clearTimeout(_msgTimer); _msgTimer = null; }
+  el.removeAttribute('style');
+  el.textContent = text;
+  el.className = type;
+  _msgTimer = setTimeout(function(){ el.className = ''; }, 8000);
+}
+
+// ── 顯示目前自選股清單 ───────────────────────────
+function renderStocks(stocks){
   const list = document.getElementById('stocks-list');
   list.innerHTML = '';
-
-  if(!configStocks || configStocks.length === 0){
+  if(!stocks || stocks.length === 0){
     list.innerHTML = '<span style="color:#999;font-size:.82rem;">尚無自選股</span>';
+    return;
   }
-
-  // 已分析的股票（本報告）— 藍色標籤
-  configStocks.forEach(function(s){
+  stocks.forEach(function(s){
     const tag = document.createElement('span');
     tag.className = 'stock-tag';
-    tag.title = '已在分析清單中';
+    tag.title = '點 × 移除';
     tag.innerHTML = '<b>'+s.name+'</b>&nbsp;<span style="color:#888;font-size:.75rem;">'+s.symbol+'</span>'
       +'<span class="remove" title="從清單移除" onclick="removeStock(\''+s.symbol+'\',\''+s.name+'\')">×</span>';
     list.appendChild(tag);
   });
-
-  // 待加入（localStorage）— 綠色標籤
-  pendingStocks.forEach(function(s){
-    const tag = document.createElement('span');
-    tag.className = 'stock-tag new-tag';
-    tag.title = '待加入（點重新分析後生效）';
-    tag.innerHTML = '＋&nbsp;<b>'+s.name+'</b>&nbsp;<span style="font-size:.75rem;">'+s.symbol+'</span>'
-      +'<span class="remove" title="取消加入" onclick="removePending(\''+s.symbol+'\')">×</span>';
-    list.appendChild(tag);
-  });
 }
 
-var _msgTimer = null;
-function showMsg(text, type){
-  const el = document.getElementById('manager-msg');
-  // 清除舊 timer 和 inline style（修正多次呼叫時的 display 衝突）
-  if(_msgTimer){ clearTimeout(_msgTimer); _msgTimer=null; }
-  el.removeAttribute('style');   // 清除 inline style
-  el.textContent = text;
-  el.className = type;           // CSS class 控制顯示（.ok/.err/.info 均有 display:block）
-  _msgTimer = setTimeout(function(){
-    el.className = '';           // 清除 class → 回到 display:none（由 CSS 控制）
-  }, 5000);
-}
-
+// ── 加入並立即分析 ───────────────────────────────
 function addStock(){
   const symRaw = document.getElementById('inp-symbol').value.trim().toUpperCase();
   const name   = document.getElementById('inp-name').value.trim();
   const ind    = document.getElementById('inp-industry').value;
 
-  // 驗證輸入
-  if(!symRaw){  showMsg('⚠️ 請輸入股票代號（如 2330）','err'); return; }
-  if(!name){    showMsg('⚠️ 請輸入公司名稱','err'); return; }
+  if(!symRaw){ showMsg('⚠️ 請輸入股票代號（如 2317）','err'); return; }
+  if(!name){   showMsg('⚠️ 請輸入公司名稱','err'); return; }
 
-  // 補 .TW 後綴
   const symbol = symRaw.includes('.') ? symRaw : symRaw+'.TW';
 
-  // 已在報告清單中？
-  const inReport  = reportStocks.some(function(s){ return s.symbol===symbol; });
-  const inPending = pendingStocks.some(function(s){ return s.symbol===symbol; });
-
-  if(inReport){
+  if(reportStocks.some(function(s){ return s.symbol === symbol; })){
     showMsg('📋 '+name+'（'+symbol+'）已在目前分析清單中','info');
     return;
   }
-  if(inPending){
-    showMsg('⏳ '+name+'（'+symbol+'）已在待加入清單，請點「重新分析」','info');
+
+  if(!serverOnline){
+    showMsg('❌ 本機伺服器未啟動！請執行 uv run server.py 後再試','err');
+    document.getElementById('server-hint').style.display = 'block';
     return;
   }
 
-  // 加入待加入清單
-  pendingStocks.push({name:name, symbol:symbol, industry:ind});
-  localStorage.setItem('tw_pending_stocks', JSON.stringify(pendingStocks));
+  const btnAdd = document.getElementById('btn-add');
+  const btnRun = document.getElementById('btn-run');
+  btnAdd.disabled = true; btnAdd.textContent = '加入中...';
+  btnRun.disabled = true;
+  showMsg('⏳ 正在加入 '+name+' 並啟動分析，請稍候（約20秒）...','info');
 
-  // 清空輸入
-  document.getElementById('inp-symbol').value = '';
-  document.getElementById('inp-name').value   = '';
-
-  renderStocks(reportStocks);
-  showMsg('✅ 已加入 '+name+'！請點「🔄 重新分析」讓系統開始分析此股票','ok');
+  fetch(API+'/api/add-stock', {
+    method:'POST',
+    headers:{'Content-Type':'application/json'},
+    body: JSON.stringify({name:name, symbol:symbol, industry:ind})
+  })
+  .then(function(r){ return r.json(); })
+  .then(function(d){
+    if(!d.ok) throw new Error(d.error || '加入失敗');
+    showMsg('✅ 已加入 '+name+'！正在重新分析，請稍候...','ok');
+    document.getElementById('inp-symbol').value = '';
+    document.getElementById('inp-name').value   = '';
+    return fetch(API+'/api/run', {method:'POST'});
+  })
+  .then(function(r){ return r.json(); })
+  .then(function(d){
+    if(!d.ok) throw new Error(d.error || '分析失敗');
+    showMsg('🎉 分析完成！3秒後自動重新整理...','ok');
+    setTimeout(function(){ window.location.reload(); }, 3000);
+  })
+  .catch(function(e){
+    btnAdd.disabled = false; btnAdd.textContent = '＋ 加入並分析';
+    btnRun.disabled = false;
+    showMsg('❌ '+e.message,'err');
+  });
 }
 
-function removePending(symbol){
-  pendingStocks = pendingStocks.filter(function(s){ return s.symbol!==symbol; });
-  localStorage.setItem('tw_pending_stocks', JSON.stringify(pendingStocks));
-  renderStocks(reportStocks);
-  showMsg('已取消加入 '+symbol,'info');
-}
-
+// ── 移除股票並重新分析 ───────────────────────────
 function removeStock(symbol, name){
-  if(!confirm('確定要從分析清單移除「'+name+'」嗎？\n（需點「重新分析」後生效）')){ return; }
+  if(!confirm('確定要從分析清單移除「'+name+'」？\n移除後將立即重新分析並更新報告。')){ return; }
+  if(!serverOnline){
+    showMsg('❌ 本機伺服器未啟動！請執行 uv run server.py 後再試','err');
+    return;
+  }
+  const btnRun = document.getElementById('btn-run');
+  btnRun.disabled = true;
+  showMsg('⏳ 正在移除 '+name+' 並重新分析...','info');
+
   fetch(API+'/api/remove-stock', {
     method:'POST',
     headers:{'Content-Type':'application/json'},
     body: JSON.stringify({symbol:symbol})
-  }).then(function(r){ return r.json(); })
-    .then(function(d){
-      if(d.ok){ showMsg('✅ 已移除 '+name+'，請點「重新分析」套用','info'); }
-      else     { showMsg('❌ 移除失敗：'+d.error,'err'); }
-    }).catch(function(){
-      showMsg('⚠️ 本機伺服器未啟動，請先執行：uv run server.py','err');
-    });
+  })
+  .then(function(r){ return r.json(); })
+  .then(function(d){
+    if(!d.ok) throw new Error(d.error || '移除失敗');
+    return fetch(API+'/api/run', {method:'POST'});
+  })
+  .then(function(r){ return r.json(); })
+  .then(function(d){
+    if(!d.ok) throw new Error(d.error || '分析失敗');
+    showMsg('✅ 已移除 '+name+'！3秒後自動重新整理...','ok');
+    setTimeout(function(){ window.location.reload(); }, 3000);
+  })
+  .catch(function(e){
+    btnRun.disabled = false;
+    showMsg('❌ '+e.message,'err');
+  });
 }
 
+// ── 重新分析（不新增/移除，只重跑） ─────────────
 function runAnalysis(){
+  if(!serverOnline){
+    showMsg('❌ 本機伺服器未啟動！請執行 uv run server.py 後再試','err');
+    document.getElementById('server-hint').style.display = 'block';
+    return;
+  }
   const btn = document.getElementById('btn-run');
-  btn.disabled = true;
-  btn.textContent = '分析中...';
-  showMsg('正在重新分析，請稍候（約20秒）...','info');
+  btn.disabled = true; btn.textContent = '分析中...';
+  showMsg('⏳ 正在重新分析，請稍候（約20秒）...','info');
 
-  // 先把 pending stocks 推給伺服器
-  const addPromises = pendingStocks.map(function(s){
-    return fetch(API+'/api/add-stock',{
-      method:'POST',
-      headers:{'Content-Type':'application/json'},
-      body: JSON.stringify(s)
-    }).then(function(r){return r.json();});
-  });
-
-  Promise.all(addPromises).then(function(){
-    pendingStocks=[];
-    localStorage.removeItem('tw_pending_stocks');
-    return fetch(API+'/api/run',{method:'POST'});
-  }).then(function(r){return r.json();})
+  fetch(API+'/api/run', {method:'POST'})
+    .then(function(r){ return r.json(); })
     .then(function(d){
       if(d.ok){
-        showMsg('分析完成！3秒後重新整理頁面...','ok');
-        setTimeout(function(){ window.location.reload(); },3000);
+        showMsg('🎉 分析完成！3秒後自動重新整理...','ok');
+        setTimeout(function(){ window.location.reload(); }, 3000);
       } else {
-        btn.disabled=false; btn.textContent='🔄 重新分析';
-        showMsg('執行失敗: '+d.error,'err');
+        btn.disabled = false; btn.textContent = '🔄 重新分析';
+        showMsg('❌ 執行失敗：'+d.error,'err');
       }
-    }).catch(function(){
-      btn.disabled=false; btn.textContent='🔄 重新分析';
-      showMsg('⚠️ 請先執行 uv run server.py 啟動本機伺服器','err');
+    })
+    .catch(function(){
+      btn.disabled = false; btn.textContent = '🔄 重新分析';
+      showMsg('❌ 無法連線至伺服器，請確認 uv run server.py 已執行','err');
     });
 }
 
-// 初始化
-(function(){
-  if(typeof reportStocks !== 'undefined') renderStocks(reportStocks);
-})();
+// ── 初始化 ───────────────────────────────────────
+window.addEventListener('DOMContentLoaded', function(){
+  renderStocks(reportStocks);
+  checkServer();
+});
 </script>
 </body>
 </html>"""

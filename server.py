@@ -11,7 +11,7 @@ from http.server import HTTPServer, BaseHTTPRequestHandler
 from urllib.parse import urlparse
 
 CONFIG_PATH = os.path.join(os.path.dirname(__file__), 'config.json')
-REPORT_PATH = os.path.join(os.path.dirname(__file__), 'output', 'index.html')
+REPORT_PATH = os.path.join(os.path.dirname(__file__), 'docs', 'index.html')
 
 def load_config():
     with open(CONFIG_PATH, 'r', encoding='utf-8') as f:
