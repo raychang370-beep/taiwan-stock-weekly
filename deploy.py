@@ -11,7 +11,8 @@ BASE = os.path.dirname(os.path.abspath(__file__))
 
 def run(cmd, cwd=None, check=True):
     result = subprocess.run(cmd, shell=True, cwd=cwd or BASE,
-                            capture_output=True, text=True,
+                            capture_output=True,
+                            encoding='utf-8', errors='replace',
                             env={**os.environ, 'PYTHONIOENCODING': 'utf-8'})
     if result.stdout.strip():
         print(result.stdout.strip())
