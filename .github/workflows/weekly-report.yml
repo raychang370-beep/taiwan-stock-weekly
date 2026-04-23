@@ -1,0 +1,38 @@
+name: 台股週報自動分析
+
+on:
+  schedule:
+    # 每週一 08:00 台北時間 = UTC 週一 00:00
+    - cron: '0 0 * * 1'
+  workflow_dispatch:   # 允許手動觸發（網頁上按鈕）
+
+jobs:
+  analyze:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+
+    steps:
+      - name: Checkout 程式碼
+        uses: actions/checkout@v4
+
+      - name: 設定 Python 3.11
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+          cache: 'pip'
+
+      - name: 安裝依賴套件
+        run: |
+          pip install \
+            yfinance>=0.2.50 \
+            pandas>=2.2.0 \
+            numpy>=1.26.0 \
+            feedparser>=6.0.10 \
+            requests>=2.31.0 \
+            jinja2>=3.1.2 \
+            firebase-admin>=6.2.0
+
+      - name: 執行台股分析並上傳到 Firestore
+        env:
+          FIREBASE_CREDENTIALS: ${{ secrets.FIREBASE_CREDENTIALS }}
+        run: python gha_deploy.py
