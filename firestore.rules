@@ -1,0 +1,22 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // 報告：前端可直接讀取（GitHub Pages Firebase SDK 直讀）
+    match /reports/{doc} {
+      allow read: if true;
+      allow write: if false;   // 只有 Cloud Functions (Admin SDK) 能寫
+    }
+
+    // 自選股設定：前端可讀，寫入由 Cloud Functions 處理
+    match /config/{doc} {
+      allow read: if true;
+      allow write: if false;
+    }
+
+    // 其他文件全拒絕
+    match /{document=**} {
+      allow read, write: if false;
+    }
+  }
+}
