@@ -217,8 +217,8 @@ HTML_TEMPLATE = """<!DOCTYPE html>
       <input id="inp-symbol" type="text" placeholder="2317" maxlength="10" style="width:110px">
     </div>
     <div>
-      <div style="font-size:.75rem;color:#888;margin-bottom:.3rem;">公司名稱</div>
-      <input id="inp-name" type="text" placeholder="鴻海" maxlength="20" style="width:120px">
+      <div style="font-size:.75rem;color:#888;margin-bottom:.3rem;">公司名稱 <span style="color:#bbb;">（可不填）</span></div>
+      <input id="inp-name" type="text" placeholder="自動查詢" maxlength="20" style="width:120px">
     </div>
     <div>
       <div style="font-size:.75rem;color:#888;margin-bottom:.3rem;">產業</div>
@@ -514,7 +514,7 @@ chartData.forEach(function(item){
       type:'line',
       plugins:[kdPlugin],
       data:{
-        labels:ts,
+        labels:d.dates,
         datasets:[
           {label:'K',data:d.k,borderColor:'#e67e00',backgroundColor:'transparent',
            borderWidth:1.8,pointRadius:0,tension:.3},
@@ -530,8 +530,9 @@ chartData.forEach(function(item){
           tooltip:{mode:'index',intersect:false}
         },
         scales:{
-          x:{type:'timeseries',time:{unit:'day',displayFormats:{day:'M/d'}},
-             ticks:{maxTicksLimit:6,font:{size:8}},grid:{display:false}},
+          x:{ticks:{maxTicksLimit:6,font:{size:8},
+             callback:function(val,idx){var s=d.dates[idx];return s?s.slice(5):''}},
+             grid:{display:false}},
           y:{min:0,max:100,ticks:{stepSize:20,font:{size:8},
              callback:function(v){return v===20?'超賣':v===80?'超買':v;}},
              grid:GRID_LIGHT}
@@ -608,7 +609,7 @@ function addStock(){
   const ind    = document.getElementById('inp-industry').value;
 
   if(!symRaw){ showMsg('⚠️ 請輸入股票代號（如 2317）','err'); return; }
-  if(!name){   showMsg('⚠️ 請輸入公司名稱','err'); return; }
+  // name 可選填，後端會自動從 yfinance 查詢
 
   const symbol = symRaw.includes('.') ? symRaw : symRaw+'.TW';
 

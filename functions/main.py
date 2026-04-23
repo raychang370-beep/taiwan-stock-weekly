@@ -166,11 +166,24 @@ def api_add_stock(req: https_fn.Request) -> https_fn.Response:
         name   = data.get("name",   "").strip()
         industry = data.get("industry", "其他").strip()
 
-        if not symbol or not name:
+        if not symbol:
             return https_fn.Response(
-                json.dumps({"ok": False, "error": "請提供 symbol 和 name"}),
+                json.dumps({"ok": False, "error": "請提供 symbol（股票代號）"}),
                 status=400, headers=headers,
             )
+
+        # 若未提供名稱，自動從 yfinance 查詢
+        if not name:
+            try:
+                import yfinance as yf
+                info = yf.Ticker(symbol).info
+                name = (info.get("shortName") or info.get("longName") or
+                        symbol.replace(".TW", "").replace(".TWO", ""))
+                for suffix in [" Inc.", " Co., Ltd.", " Corp.", " Co.", " Ltd."]:
+                    name = name.replace(suffix, "")
+                name = name.strip() or symbol.replace(".TW", "")
+            except Exception:
+                name = symbol.replace(".TW", "").replace(".TWO", "")
 
         config = _get_config()
         companies = config.get("companies", [])
