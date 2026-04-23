@@ -131,8 +131,8 @@ HTML_TEMPLATE = """<!DOCTYPE html>
   .kd-item span{font-weight:700;}
   .cross-tag{font-size:.73rem;padding:.12rem .5rem;border-radius:10px;background:#fff3cd;color:#856404;font-weight:600;margin-left:.3rem;}
   .chart-wrap{margin-top:.8rem;}
-  .chart-candle{position:relative;height:200px;margin-bottom:4px;}
-  .chart-kd{position:relative;height:80px;}
+  .chart-candle{position:relative;height:260px;margin-bottom:4px;}
+  .chart-kd{position:relative;height:90px;}
   .chart-label{font-size:.68rem;color:var(--sub);margin:.35rem 0 .1rem;
                font-weight:700;letter-spacing:.04em;text-transform:uppercase;}
   /* 手機優化 */
@@ -213,12 +213,13 @@ HTML_TEMPLATE = """<!DOCTYPE html>
   </div>
   <div class="manager-row">
     <div>
-      <div style="font-size:.75rem;color:#888;margin-bottom:.3rem;">股票代號（如 2317）</div>
-      <input id="inp-symbol" type="text" placeholder="2317" maxlength="10" style="width:110px">
+      <div style="font-size:.75rem;color:#888;margin-bottom:.3rem;">股票代號 <span style="color:#1a73e8;font-weight:600;">（只需填這欄）</span></div>
+      <input id="inp-symbol" type="text" placeholder="如：2317" maxlength="10" style="width:130px"
+             oninput="this.value=this.value.replace(/[^0-9a-zA-Z.]/g,'')">
     </div>
     <div>
-      <div style="font-size:.75rem;color:#888;margin-bottom:.3rem;">公司名稱 <span style="color:#bbb;">（可不填）</span></div>
-      <input id="inp-name" type="text" placeholder="自動查詢" maxlength="20" style="width:120px">
+      <div style="font-size:.75rem;color:#888;margin-bottom:.3rem;">公司名稱 <span style="color:#bbb;">（可不填，自動查詢）</span></div>
+      <input id="inp-name" type="text" placeholder="自動查詢" maxlength="20" style="width:130px">
     </div>
     <div>
       <div style="font-size:.75rem;color:#888;margin-bottom:.3rem;">產業</div>
@@ -444,17 +445,17 @@ chartData.forEach(function(item){
     const chart = LightweightCharts.createChart(candleEl, {
       autoSize: true,
       layout:{
-        background:{type:'solid', color:'transparent'},
-        textColor:'#666',
-        fontSize: 10,
+        background:{color:'#ffffff'},
+        textColor:'#555',
+        fontSize: 11,
       },
       grid:{
-        vertLines:{color:'#f0f0f0'},
-        horzLines:{color:'#f0f0f0'},
+        vertLines:{color:'rgba(220,220,220,.6)'},
+        horzLines:{color:'rgba(220,220,220,.6)'},
       },
-      rightPriceScale:{borderColor:'#e0e0e0', scaleMargins:{top:.1,bottom:.1}},
-      timeScale:{borderColor:'#e0e0e0', timeVisible:false, fixRightEdge:true, fixLeftEdge:true},
-      crosshair:{mode: LightweightCharts.CrosshairMode.Normal},
+      rightPriceScale:{borderColor:'#ddd', scaleMargins:{top:.08,bottom:.08}},
+      timeScale:{borderColor:'#ddd', timeVisible:true, secondsVisible:false, fixRightEdge:true, fixLeftEdge:true},
+      crosshair:{mode: 1},
       handleScroll: false,
       handleScale:  false,
     });
@@ -661,7 +662,7 @@ function addStock(){
 
 // ── 移除股票並重新分析 ───────────────────────────
 function removeStock(symbol, name){
-  if(!confirm('確定要從分析清單移除「'+name+'」？\n移除後將立即重新分析並更新報告。')){ return; }
+  if(!confirm('確定要從分析清單移除「'+name+'」？移除後將立即重新分析並更新報告。')){ return; }
   if(!serverOnline){
     showMsg('❌ Firebase 服務無回應，請稍後再試','err');
     return;
