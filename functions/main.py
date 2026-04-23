@@ -127,7 +127,7 @@ def run_analysis(req: https_fn.Request) -> https_fn.Response:
         )
 
 
-@https_fn.on_request(region="us-central1")
+@https_fn.on_request(region="asia-east1")
 def api_config(req: https_fn.Request) -> https_fn.Response:
     """取得自選股設定（GET /api/config）"""
     headers = {**CORS, "Content-Type": "application/json"}
@@ -148,7 +148,7 @@ def api_config(req: https_fn.Request) -> https_fn.Response:
         )
 
 
-@https_fn.on_request(region="us-central1")
+@https_fn.on_request(region="asia-east1")
 def api_add_stock(req: https_fn.Request) -> https_fn.Response:
     """新增自選股（POST /api/add-stock）"""
     headers = {**CORS, "Content-Type": "application/json"}
@@ -196,7 +196,7 @@ def api_add_stock(req: https_fn.Request) -> https_fn.Response:
         )
 
 
-@https_fn.on_request(region="us-central1")
+@https_fn.on_request(region="asia-east1")
 def api_remove_stock(req: https_fn.Request) -> https_fn.Response:
     """移除自選股（POST /api/remove-stock）"""
     headers = {**CORS, "Content-Type": "application/json"}
