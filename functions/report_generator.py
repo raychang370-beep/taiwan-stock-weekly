@@ -597,7 +597,11 @@ function renderStocks(stocks){
     tag.className = 'stock-tag';
     tag.title = '點 × 移除';
     tag.innerHTML = '<b>'+s.name+'</b>&nbsp;<span style="color:#888;font-size:.75rem;">'+s.symbol+'</span>'
-      +'<span class="remove" title="從清單移除" onclick="removeStock(\''+s.symbol+'\',\''+s.name+'\')">×</span>';
+      +'<span class="remove" title="從清單移除">×</span>';
+    // 用 addEventListener 避免 onclick 字串 escaping 問題
+    tag.querySelector('.remove').addEventListener('click', (function(sym, nm){
+      return function(){ removeStock(sym, nm); };
+    })(s.symbol, s.name));
     list.appendChild(tag);
   });
 }
