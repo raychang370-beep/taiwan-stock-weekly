@@ -7,7 +7,7 @@ run_analysis     POST /api/run         → 手動觸發分析，結果存 Firest
 api_config       GET  /api/config      → 讀取自選股設定（健康檢查用）
 api_add_stock    POST /api/add-stock   → 新增自選股
 api_remove_stock POST /api/remove-stock→ 移除自選股
-weekly_analysis  [排程] 每週一 08:00 台北時間 → 自動分析
+weekly_analysis  [排程] 每週日 14:00 台北時間 → 自動分析
 
 前端（GitHub Pages docs/index.html）用 Firebase JS SDK 直接讀 Firestore reports/latest
 """
@@ -258,13 +258,13 @@ def api_remove_stock(req: https_fn.Request) -> https_fn.Response:
 # ── Scheduled Function ─────────────────────────────────────────────────────
 
 @scheduler_fn.on_schedule(
-    schedule="0 8 * * 1",   # 每週一 08:00（台北時間）
+    schedule="0 14 * * 0",  # 每週日 14:00（台北時間）
     timezone="Asia/Taipei",
     memory=options.MemoryOption.GB_1,
     timeout_sec=300,
     region="asia-east1",
 )
 def weekly_analysis(event: scheduler_fn.ScheduledEvent) -> None:
-    """每週一台北時間 08:00 自動執行台股技術分析週報"""
+    """每週日台北時間 14:00 自動執行台股技術分析週報"""
     print(f"=== 定時任務觸發: {event.schedule_time} ===")
     _run_analysis_and_save()
