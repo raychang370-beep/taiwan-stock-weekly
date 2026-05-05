@@ -1,71 +1,25 @@
 {
   "companies": [
-    {
-      "name": "台積電",
-      "symbol": "2330.TW",
-      "industry": "半導體"
-    },
-    {
-      "name": "世界先進",
-      "symbol": "5347.TW",
-      "industry": "半導體"
-    },
-    {
-      "name": "台勝科",
-      "symbol": "3532.TW",
-      "industry": "半導體"
-    },
-    {
-      "name": "南亞科",
-      "symbol": "2408.TW",
-      "industry": "記憶體"
-    },
-    {
-      "name": "旺宏",
-      "symbol": "2337.TW",
-      "industry": "記憶體"
-    },
-    {
-      "name": "兆赫",
-      "symbol": "2485.TW",
-      "industry": "電子零組件"
-    },
-    {
-      "name": "鴻海",
-      "symbol": "2317.TW",
-      "industry": "電子零組件"
-    },
-    {
-      "name": "廣達",
-      "symbol": "2382.TW",
-      "industry": "電子零組件"
-    }
+    {"name": "台積電", "symbol": "2330.TW", "industry": "半導體"},
+    {"name": "世界先進", "symbol": "5347.TW", "industry": "半導體"},
+    {"name": "台勝科", "symbol": "3532.TW", "industry": "半導體"},
+    {"name": "南亞科", "symbol": "2408.TW", "industry": "記憶體"},
+    {"name": "旺宏", "symbol": "2337.TW", "industry": "記憶體"},
+    {"name": "兆赫", "symbol": "2485.TW", "industry": "電子零組件"},
+    {"name": "鴻海", "symbol": "2317.TW", "industry": "電子零組件"},
+    {"name": "廣達", "symbol": "2382.TW", "industry": "電子零組件"}
   ],
-  "industries": [
-    "半導體",
-    "記憶體",
-    "電子零組件"
-  ],
+  "industries": ["半導體", "記憶體", "電子零組件"],
   "kd_period": 9,
   "kd_signal_period": 3,
   "lookback_days": 420,
   "chart_display_days": 60,
   "news_sources": [
-    {
-      "name": "鉅亨網",
-      "url": "https://news.cnyes.com/rss/cat/tw_stock"
-    },
-    {
-      "name": "MoneyDJ",
-      "url": "https://www.moneydj.com/rss/news.aspx"
-    },
-    {
-      "name": "Yahoo股市",
-      "url": "https://tw.stock.yahoo.com/rss"
-    }
+    {"name": "鉅亨網", "url": "https://news.cnyes.com/rss/cat/tw_stock"},
+    {"name": "MoneyDJ", "url": "https://www.moneydj.com/rss/news.aspx"},
+    {"name": "Yahoo股市", "url": "https://tw.stock.yahoo.com/rss"}
   ],
   "output_dir": "docs",
   "report_title": "台股技術分析週報",
-  "password": "stock2026",
   "github_repo": "raychang370-beep/taiwan-stock-weekly"
 }
