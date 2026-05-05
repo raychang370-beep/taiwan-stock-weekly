@@ -1,4 +1,4 @@
-"""
+﻿"""
 GitHub Actions 部署腳本
 執行股票分析並將報告 HTML 存入 Firebase Firestore。
 不需要 Firebase Cloud Functions，也不需要 Blaze 方案。
@@ -106,8 +106,10 @@ def main():
             print(f"  {cat}: {', '.join(r['name'] for r in stocks)}")
     print("=" * 52)
     print("\n  🌐 報告網址: https://raychang370-beep.github.io/taiwan-stock-weekly/")
-    print("  🔑 密碼: stock2026")
+    password = os.environ.get("REPORT_PASSWORD", "(請查看 GitHub Secrets)")
+    print(f"  🔑 密碼: {password}")
 
 
 if __name__ == "__main__":
     main()
+
