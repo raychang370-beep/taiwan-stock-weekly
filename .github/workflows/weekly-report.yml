@@ -1,4 +1,4 @@
-name: 台股週報自動分析
+﻿name: 台股週報自動分析
 
 on:
   schedule:
@@ -35,4 +35,5 @@ jobs:
       - name: 執行台股分析並上傳到 Firestore
         env:
           FIREBASE_CREDENTIALS: ${{ secrets.FIREBASE_CREDENTIALS }}
+          REPORT_PASSWORD: ${{ secrets.REPORT_PASSWORD }}
         run: python gha_deploy.py
