@@ -8,7 +8,7 @@
 <!-- 密碼保護：在 Chart.js 之前執行，防止頁面內容被看到 -->
 <script>
 (function(){
-  const HASH = ""; // SHA-256 of password
+  const HASH = "1aeaf73d994452190c20e0e76fd0648137a402055f18326eef825b5e034fa362"; // SHA-256 of password
   const KEY  = "tw_stock_auth";
   async function sha256(msg){
     const buf = await crypto.subtle.digest("SHA-256", new TextEncoder().encode(msg));
@@ -171,7 +171,7 @@
 <!-- ① Header -->
 <header>
   <h1>📊 台股技術分析週報</h1>
-  <div class="subtitle">2026 年第 20 週（05/17） ｜ 產生時間：2026-05-17 14:09</div>
+  <div class="subtitle">2026 年第 20 週（05/17） ｜ 產生時間：2026-05-17 14:13</div>
   <div class="cat-summary">
     
     <span class="cat-pill" style="background:#e6ffe6;color:#00b300;border:1px solid #00b300">
@@ -923,6 +923,11 @@
     </div>
     
     <div class="news-item">
+      <a href="https://news.google.com/rss/articles/CBMiWEFVX3lxTE9laXNTbnR0RHV0REJpMV9LUkJvZHVRVEJBVFYyNHNtYVdHbE1CNGVNYnJSQ2FZVkdoUjBGRTY0WXo3bnl5eWZQeU1STFVzczFqRElzeXJXaUE?oc=5" target="_blank">女股神兩天拋售10萬多股台積電股票 落袋為安 - 自由時報</a>
+      <div class="news-source">自由時報 ｜ Sat, 16 May 2026</div>
+    </div>
+    
+    <div class="news-item">
       <a href="https://news.google.com/rss/articles/CBMigAFBVV95cUxPampwUHJMbU9TWG01cEdleGg5dmxpRHRPQ0JTM181bkh3QlJKbUgzQTRPWTZhUVMtMmswVjZsN255bnBjX29jNzRkY21mN3JjLTJqckEyRTVFV0JEY1NEQjNQQmIzRlc2Vkxzb3JCaFRCQkh2bWdaY3VOd2NuekZwXw?oc=5" target="_blank">台積電將賣世界先進股票15.2萬張，持股比率剩19%！小股東好害怕：股價才新高怎麼辦？公司最新說法 - 今周刊</a>
       <div class="news-source">今周刊 ｜ Fri, 15 May 2026</div>
     </div>
@@ -935,11 +940,6 @@
     <div class="news-item">
       <a href="https://news.google.com/rss/articles/CBMiT0FVX3lxTE5rS0RXQ1NwT185b0F4Nkk4Q2RuSzhCWDNFM3JtdzFuRUJvblJGVWxFNzhHejFVU3RoaUpiMUV3VnVhNnFyQ01FSTQ5ay1rWkXSAWtBVV95cUxNcVNKdkVBYkNkeGNnVjhiSk1MTEpHVm9JYXk4UU8wNks2Y2lkR2N0M3R6Y0NYUlRVSHlLNEJkSG9Rd1BSTDRyQVNQN19sbXc3XzJ1dDJUbVYyMHhMZkxzcmMxVkxEclE5cFRKbw?oc=5" target="_blank">陸敬民／「你有幾張台積電？」　年輕人不買房改曬股票 - ETtoday房產雲</a>
       <div class="news-source">ETtoday房產雲 ｜ Sat, 16 May 2026</div>
-    </div>
-    
-    <div class="news-item">
-      <a href="https://news.google.com/rss/articles/CBMiT0FVX3lxTE1ISVdnV2MtbDNvalhwN1h1c3p5dmQtc3dTYkRvczA1bi1UamEzYmNMLUVwUnRCWmpZbTYxMHlwY21lODRfMHR2MXplS1JEbmM?oc=5" target="_blank">賣股票換鈔票、台積電、鴻海、強茂 - news.cnyes.com</a>
-      <div class="news-source">news.cnyes.com ｜ Fri, 15 May 2026</div>
     </div>
     
     <div class="news-item">
@@ -974,7 +974,7 @@
 
 <footer>
   本報告由自動化程式依技術分析產生，僅供參考，不構成投資建議。<br>
-  資料來源：Yahoo Finance ｜ 分析時間：2026-05-17 14:09
+  資料來源：Yahoo Finance ｜ 分析時間：2026-05-17 14:13
 </footer>
 
 </div><!-- /#main-body -->
