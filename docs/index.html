@@ -1110,7 +1110,7 @@ function checkServer(){
   el.textContent = '⏳ 偵測中...';
   el.style.cssText = 'font-size:.75rem;font-weight:400;margin-left:.8rem;padding:.15rem .6rem;border-radius:10px;background:#f4f4f4;color:#888;';
   const ctrl = new AbortController();
-  const tid = setTimeout(function(){ ctrl.abort(); }, 3000);
+  const tid = setTimeout(function(){ ctrl.abort(); }, 12000);
   fetch(API+'/api/config', {signal: ctrl.signal})
     .then(function(r){ clearTimeout(tid); return r.ok ? r.json() : Promise.reject(); })
     .then(function(){
