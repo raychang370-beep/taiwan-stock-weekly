@@ -359,11 +359,34 @@ HTML_TEMPLATE = """<!DOCTYPE html>
       <div class="kd-row">
         <div class="kd-item">K值 <span style="color:{{cfg.color}}">{{ s.k_value }}</span></div>
         <div class="kd-item">D值 <span style="color:{{cfg.color}}">{{ s.d_value }}</span></div>
-        <div class="kd-item">信心 <span>{{ s.confidence }}%</span></div>
+        {% if s.rsi is not none %}
+        <div class="kd-item">RSI <span style="color:{{'#d32f2f' if s.rsi > 70 else '#2e7d32' if s.rsi < 30 else cfg.color}}">{{ s.rsi }}</span></div>
+        {% endif %}
+        <div class="kd-item">評分 <span style="font-weight:700;color:{{cfg.color}}">{{ s.score if s.score is defined else s.confidence }}</span></div>
       </div>
+      {% if s.macd_hist is not none or s.bb_pos is not none or s.vol_ratio is not none %}
+      <div class="kd-row" style="font-size:.75rem;color:#666;">
+        {% if s.macd_hist is not none %}
+        <div class="kd-item">MACD柱 <span style="color:{{'#d32f2f' if s.macd_hist > 0 else '#2e7d32'}}">{{ s.macd_hist }}</span></div>
+        {% endif %}
+        {% if s.bb_pos is not none %}
+        <div class="kd-item">布林%b <span>{{ s.bb_pos|int }}%</span></div>
+        {% endif %}
+        {% if s.vol_ratio is not none %}
+        <div class="kd-item">量比 <span>{{ s.vol_ratio }}</span></div>
+        {% endif %}
+      </div>
+      {% endif %}
       <div class="confidence-bar">
-        <div class="confidence-fill" style="width:{{s.confidence}}%;background:{{cfg.color}};"></div>
+        <div class="confidence-fill" style="width:{{s.score if s.score is defined else s.confidence}}%;background:{{cfg.color}};"></div>
       </div>
+      {% if s.signals %}
+      <div style="margin:.4rem 0;font-size:.76rem;line-height:1.7;background:#f8f9fa;border-radius:8px;padding:.5rem .7rem;">
+        {% for sig in s.signals %}
+        <div>{{ sig }}</div>
+        {% endfor %}
+      </div>
+      {% endif %}
       <div class="ma-row">
         <span>MA5: <b>{{ s.ma5 }}</b></span>
         <span>MA10: <b>{{ s.ma10 }}</b></span>
