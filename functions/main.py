@@ -11,6 +11,7 @@ weekly_analysis  [排程] 每週日 14:00 台北時間 → 自動分析
 
 前端（GitHub Pages docs/index.html）用 Firebase JS SDK 直接讀 Firestore reports/latest
 """
+import hmac
 import json
 import os
 import traceback
@@ -25,8 +26,23 @@ BASE = os.path.dirname(__file__)
 CORS = {
     "Access-Control-Allow-Origin": "*",
     "Access-Control-Allow-Methods": "GET, POST, OPTIONS",
-    "Access-Control-Allow-Headers": "Content-Type",
+    "Access-Control-Allow-Headers": "Content-Type, X-Admin-Key",
 }
+
+
+def _authorized(req: https_fn.Request) -> bool:
+    """寫入 API 只接受帶正確 X-Admin-Key 的請求；ADMIN_KEY 未設定時一律拒絕。"""
+    expected = os.environ.get("ADMIN_KEY", "")
+    given = req.headers.get("X-Admin-Key", "")
+    return bool(expected) and hmac.compare_digest(given.encode(), expected.encode())
+
+
+def _forbidden(headers: dict) -> https_fn.Response:
+    return https_fn.Response(
+        json.dumps({"ok": False, "error": "管理金鑰錯誤，無權修改", "auth": False},
+                   ensure_ascii=False),
+        status=403, headers=headers,
+    )
 
 
 # ── 共用輔助函式 ────────────────────────────────────────────────────────────
@@ -112,6 +128,8 @@ def run_analysis(req: https_fn.Request) -> https_fn.Response:
             json.dumps({"ok": False, "error": "Method Not Allowed"}),
             status=405, headers=headers
         )
+    if not _authorized(req):
+        return _forbidden(headers)
     try:
         results = _run_analysis_and_save()
         summary = {r["name"]: r.get("category", "等待") for r in results}
@@ -160,6 +178,8 @@ def api_add_stock(req: https_fn.Request) -> https_fn.Response:
             json.dumps({"ok": False, "error": "Method Not Allowed"}),
             status=405, headers=headers,
         )
+    if not _authorized(req):
+        return _forbidden(headers)
     try:
         data = req.get_json(silent=True) or {}
         symbol = data.get("symbol", "").strip()
@@ -221,6 +241,8 @@ def api_remove_stock(req: https_fn.Request) -> https_fn.Response:
             json.dumps({"ok": False, "error": "Method Not Allowed"}),
             status=405, headers=headers,
         )
+    if not _authorized(req):
+        return _forbidden(headers)
     try:
         data = req.get_json(silent=True) or {}
         symbol = data.get("symbol", "").strip()

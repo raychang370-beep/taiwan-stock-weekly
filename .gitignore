@@ -15,3 +15,7 @@ wheels/
 # Windows
 Thumbs.db
 Desktop.ini
+
+# Firebase Functions 環境變數（含管理金鑰，repo 公開，絕不可提交）
+functions/.env
+.env

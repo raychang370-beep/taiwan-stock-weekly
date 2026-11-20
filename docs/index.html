@@ -1377,18 +1377,18 @@ function addStock(){
 
   fetch(API+'/api/add-stock', {
     method:'POST',
-    headers:{'Content-Type':'application/json'},
+    headers:adminHeaders(),
     body: JSON.stringify({name:name, symbol:symbol, industry:ind})
   })
-  .then(function(r){ return r.json(); })
+  .then(readJson)
   .then(function(d){
     if(!d.ok) throw new Error(d.error || '加入失敗');
     showMsg('✅ 已加入 '+name+'！正在重新分析，請稍候...','ok');
     document.getElementById('inp-symbol').value = '';
     document.getElementById('inp-name').value   = '';
-    return fetch(API+'/api/run', {method:'POST'});
+    return fetch(API+'/api/run', {method:'POST', headers:adminHeaders()});
   })
-  .then(function(r){ return r.json(); })
+  .then(readJson)
   .then(function(d){
     if(!d.ok) throw new Error(d.error || '分析失敗');
     showMsg('🎉 分析完成！3秒後自動重新整理...','ok');
@@ -1414,15 +1414,15 @@ function removeStock(symbol, name){
 
   fetch(API+'/api/remove-stock', {
     method:'POST',
-    headers:{'Content-Type':'application/json'},
+    headers:adminHeaders(),
     body: JSON.stringify({symbol:symbol})
   })
-  .then(function(r){ return r.json(); })
+  .then(readJson)
   .then(function(d){
     if(!d.ok) throw new Error(d.error || '移除失敗');
-    return fetch(API+'/api/run', {method:'POST'});
+    return fetch(API+'/api/run', {method:'POST', headers:adminHeaders()});
   })
-  .then(function(r){ return r.json(); })
+  .then(readJson)
   .then(function(d){
     if(!d.ok) throw new Error(d.error || '分析失敗');
     showMsg('✅ 已移除 '+name+'！3秒後自動重新整理...','ok');
@@ -1444,8 +1444,8 @@ function runAnalysis(){
   btn.disabled = true; btn.textContent = '分析中...';
   showMsg('⏳ 正在重新分析，請稍候（約20秒）...','info');
 
-  fetch(API+'/api/run', {method:'POST'})
-    .then(function(r){ return r.json(); })
+  fetch(API+'/api/run', {method:'POST', headers:adminHeaders()})
+    .then(readJson)
     .then(function(d){
       if(d.ok){
         showMsg('🎉 分析完成！3秒後自動重新整理...','ok');
@@ -1459,6 +1459,22 @@ function runAnalysis(){
       btn.disabled = false; btn.textContent = '🔄 重新分析';
       showMsg('❌ 無法連線至 Firebase 服務，請稍後再試','err');
     });
+}
+
+// ── 管理金鑰（寫入 API 需要；只讀的訪客與 bot 不需要） ──
+var ADMIN_KEY_STORE = 'tw_stock_admin_key';
+function adminHeaders(){
+  var k = '';
+  try { k = localStorage.getItem(ADMIN_KEY_STORE) || ''; } catch(e){}
+  if(!k){
+    k = (prompt('請輸入管理金鑰（只有管理者能修改自選股）') || '').trim();
+    if(k){ try { localStorage.setItem(ADMIN_KEY_STORE, k); } catch(e){} }
+  }
+  return {'Content-Type':'application/json', 'X-Admin-Key': k};
+}
+function readJson(r){
+  if(r.status === 403){ try { localStorage.removeItem(ADMIN_KEY_STORE); } catch(e){} }
+  return r.json();
 }
 
 // ── 初始化 ───────────────────────────────────────
