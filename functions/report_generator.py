@@ -74,6 +74,9 @@ HTML_TEMPLATE = """<!DOCTYPE html>
   header{background:linear-gradient(135deg,#1a1a2e,#16213e);color:#fff;padding:1.6rem 2rem;text-align:center;}
   header h1{font-size:1.9rem;margin-bottom:.3rem;}
   .subtitle{color:#aaa;font-size:.85rem;}
+  .usage-line{color:#888;font-size:.72rem;margin-top:.15rem;}
+  .usage-line:empty{display:none;}
+  .usage-line a{color:inherit;}
   .cat-summary{display:flex;gap:.6rem;justify-content:center;flex-wrap:wrap;margin-top:1rem;}
   .cat-pill{padding:.35rem .9rem;border-radius:20px;font-weight:700;font-size:.82rem;display:flex;align-items:center;gap:.3rem;}
 
@@ -192,6 +195,7 @@ HTML_TEMPLATE = """<!DOCTYPE html>
 <header>
   <h1>📊 {{ title }}</h1>
   <div class="subtitle">{{ week_label }} ｜ 產生時間：{{ generated_at }}</div>
+  <div class="usage-line"><!--CLAUDE_USAGE--><!--/CLAUDE_USAGE--></div>
   <div class="cat-summary">
     {% for cat, cfg in categories.items() %}
     <span class="cat-pill" style="background:{{cfg.bg}};color:{{cfg.color}};border:1px solid {{cfg.border}}">

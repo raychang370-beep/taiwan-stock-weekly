@@ -99,6 +99,44 @@ def render(data: dict) -> str:
 """
 
 
+INDEX_PATH = os.path.join(DOCS, "index.html")
+MARK_START, MARK_END = "<!--CLAUDE_USAGE-->", "<!--/CLAUDE_USAGE-->"
+
+
+def usage_snippet(latest: dict) -> str:
+    """週報頁首的一行小字（純 HTML，bot 不跑 JS 也讀得到）"""
+    parts = []
+    for w in latest["windows"]:
+        short = "工作階段" if "5 小時" in w["label"] else "本週" if "本週" in w["label"] else w["label"]
+        parts.append(f"{short} {w['percentUsed']}%")
+    weekly = next((w for w in latest["windows"] if "本週" in w["label"]), None)
+    reset = f"（{weekly['resetsAt'][5:].replace('-', '/')} 重設）" if weekly else ""
+    return (f'🤖 Claude 用量：{html.escape(" ｜ ".join(parts))}{html.escape(reset)}'
+            f' ｜ 讀取於 {html.escape(latest["readAt"][5:].replace("-", "/"))}'
+            f' ｜ <a href="claude-usage.html">歷史</a>')
+
+
+def inject_index(latest: dict | None = None) -> bool:
+    """把用量寫進 docs/index.html 的標記之間；latest 省略時用 claude-usage.json 的最新一筆。"""
+    if latest is None:
+        if not os.path.exists(JSON_PATH):
+            return False
+        with open(JSON_PATH, encoding="utf-8") as f:
+            latest = json.load(f)["latest"]
+    if not os.path.exists(INDEX_PATH):
+        return False
+    with open(INDEX_PATH, encoding="utf-8", newline="") as f:
+        page = f.read()
+    start, end = page.find(MARK_START), page.find(MARK_END)
+    if start < 0 or end < start:
+        print("  [警告] index.html 沒有 CLAUDE_USAGE 標記，略過")
+        return False
+    page = page[:start + len(MARK_START)] + usage_snippet(latest) + page[end:]
+    with open(INDEX_PATH, "w", encoding="utf-8", newline="") as f:
+        f.write(page)
+    return True
+
+
 def main():
     sys.stdout.reconfigure(encoding="utf-8", errors="replace")
     args = [a for a in sys.argv[1:] if not a.startswith("--")]
@@ -119,13 +157,16 @@ def main():
     with open(HTML_PATH, "w", encoding="utf-8") as f:
         f.write(render(data))
     print("已寫入", HTML_PATH)
+    if inject_index(latest):
+        print("已更新週報頁首的用量")
     for w in latest["windows"]:
         print(f"  {w['label']}: {w['percentUsed']}%（{w['resetsAt']} 重設）")
 
     if "--no-push" in sys.argv:
         return
     os.chdir(BASE)
-    subprocess.run(["git", "add", "docs/claude-usage.html", "docs/claude-usage.json"], check=True)
+    subprocess.run(["git", "add", "docs/claude-usage.html", "docs/claude-usage.json",
+                    "docs/index.html"], check=True)
     if subprocess.run(["git", "diff", "--cached", "--quiet"]).returncode == 0:
         print("沒有變更，跳過 commit。")
         return
