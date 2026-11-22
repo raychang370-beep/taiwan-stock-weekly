@@ -1,16 +1,16 @@
 {
   "latest": {
-    "readAt": "2026-11-20 20:49",
+    "readAt": "2026-11-22 21:17",
     "plan": "Pro",
     "windows": [
       {
         "label": "目前工作階段（5 小時）",
-        "percentUsed": 20,
-        "resetsAt": "2026-11-21 00:30"
+        "percentUsed": 2,
+        "resetsAt": "2026-11-23 02:10"
       },
       {
         "label": "本週（所有模型）",
-        "percentUsed": 10,
+        "percentUsed": 11,
         "resetsAt": "2026-11-23 05:00"
       }
     ]
@@ -28,6 +28,22 @@
         {
           "label": "本週（所有模型）",
           "percentUsed": 10,
+          "resetsAt": "2026-11-23 05:00"
+        }
+      ]
+    },
+    {
+      "readAt": "2026-11-22 21:17",
+      "plan": "Pro",
+      "windows": [
+        {
+          "label": "目前工作階段（5 小時）",
+          "percentUsed": 2,
+          "resetsAt": "2026-11-23 02:10"
+        },
+        {
+          "label": "本週（所有模型）",
+          "percentUsed": 11,
           "resetsAt": "2026-11-23 05:00"
         }
       ]
